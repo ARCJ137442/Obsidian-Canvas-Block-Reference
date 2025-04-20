@@ -3,7 +3,7 @@ import { around } from "monkey-around";
 import { CMD_copyCanvasCardReference } from './commands';
 import { openingFile } from './linkRedirection';
 import { BuiltInSuggest, BuiltInSuggestItem } from './typings/suggest';
-import { PatchEditorSuggest, suggestAround } from './cardSuggest';
+import { suggestAround } from './cardSuggest';
 
 export default class CanvasReferencePlugin extends Plugin {
 
@@ -52,16 +52,6 @@ export default class CanvasReferencePlugin extends Plugin {
 		return this.app.workspace.editorSuggest.suggests[0];
 	}
 
-	async getNodesFromCanvas(canvasFile: TFile) {
-
-		// Convert json string to object
-		const canvasFileContent = await this.app.vault.cachedRead(canvasFile);
-		const canvasFileData = JSON.parse(canvasFileContent);
-
-		// return the nodes as object
-		return canvasFileData.nodes;
-	}
-
 	patchEditorSuggest() {
 		// console.log('patchEditorSuggest')
 		// this.registerEditorSuggest(new PatchEditorSuggest(this.app));
@@ -77,7 +67,7 @@ export default class CanvasReferencePlugin extends Plugin {
 		const plugin = this;
 		const app = this.app;
 
-		this.register(around(suggest.constructor.prototype, suggestAround(suggest, plugin, app)));
+		this.register(around(suggest.constructor.prototype, suggestAround(suggest, app)));
 
 		return
 
