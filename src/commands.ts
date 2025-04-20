@@ -1,9 +1,11 @@
-import { CanvasNodeData } from 'obsidian/canvas';
 /**
  * 可通过快捷键调用的命令
  * * 白板中复制卡片引用
+ *
+ * 📌通知功能`Notice`参考自 <https://github.com/Vinzent03/obsidian-git>
  */
 
+import { CanvasNodeData } from 'obsidian/canvas';
 import { App, ItemView, Notice } from 'obsidian';
 
 /** 对接外部插件 */

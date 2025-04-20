@@ -1,7 +1,9 @@
-import { App, Editor, EditorPosition, EditorSuggest, EditorSuggestContext, EditorSuggestTriggerInfo, ItemView, OpenViewState, Plugin, prepareFuzzySearch, TFile, ViewState, WorkspaceLeaf } from 'obsidian';
+import { EditorSuggestContext, Plugin, prepareFuzzySearch, TFile, ViewState, WorkspaceLeaf } from 'obsidian';
 import { around } from "monkey-around";
 import { CMD_copyCanvasCardReference } from './commands';
 import { openingFile } from './linkRedirection';
+import { BuiltInSuggest, BuiltInSuggestItem } from './typings/suggest';
+import { PatchEditorSuggest, suggestAround } from './cardSuggest';
 
 export default class CanvasReferencePlugin extends Plugin {
 
@@ -45,20 +47,39 @@ export default class CanvasReferencePlugin extends Plugin {
 		}));
 	}
 
+	getBuiltInSuggest(): BuiltInSuggest {
+		// @ts-ignore
+		return this.app.workspace.editorSuggest.suggests[0];
+	}
+
+	async getNodesFromCanvas(canvasFile: TFile) {
+
+		// Convert json string to object
+		const canvasFileContent = await this.app.vault.cachedRead(canvasFile);
+		const canvasFileData = JSON.parse(canvasFileContent);
+
+		// return the nodes as object
+		return canvasFileData.nodes;
+	}
+
 	patchEditorSuggest() {
-		console.log('patchEditorSuggest')
-		this.registerEditorSuggest(new PatchEditorSuggest(this.app));
-		console.log('patchEditorSuggest done');
+		// console.log('patchEditorSuggest')
+		// this.registerEditorSuggest(new PatchEditorSuggest(this.app));
+		// console.log('patchEditorSuggest done');
+		// return
 
-		async function getNodesFromCanvas(self: Plugin, canvasFile: TFile) {
+		// * 📌以下代码借鉴自 <https://github.com/RyotaUshio/obsidian-rendered-block-link-suggestions>
+		// * ❗这个是「替换」而非「新增」，不一定用得上
+		// * 💭【2025-04-20 18:16:39】这儿能跑通，那就不用单独的class
 
-			// Convert json string to object
-			const canvasFileContent = await self.app.vault.cachedRead(canvasFile);
-			const canvasFileData = JSON.parse(canvasFileContent);
+		// builtin suggest
+		const suggest = this.getBuiltInSuggest();
+		const plugin = this;
+		const app = this.app;
 
-			// return the nodes as object
-			return canvasFileData.nodes;
-		}
+		this.register(around(suggest.constructor.prototype, suggestAround(suggest, plugin, app)));
+
+		return
 
 
 		// @ts-ignore
@@ -99,7 +120,7 @@ export default class CanvasReferencePlugin extends Plugin {
 						if (!canvasFile) return result;
 
 						// Get nodes from canvas file
-						const nodes = await getNodesFromCanvas(this.app, canvasFile);
+						const nodes = await this.getNodesFromCanvas(canvasFile);
 
 						if (!nodes) return result;
 						const suggestions: any[] = [];
@@ -156,121 +177,3 @@ export default class CanvasReferencePlugin extends Plugin {
 	}
 }
 
-
-// ! ↓下边这些废弃，只保留实际功能
-class PatchEditorSuggestTriggerInfo implements EditorSuggestTriggerInfo {
-	public constructor(
-		public start: EditorPosition,
-		public end: EditorPosition,
-		public query: string,
-	) { }
-}
-
-class PatchEditorSuggest extends EditorSuggest<string> {
-
-	constructor(app: App) {
-		super(app);
-		console.log('PatchEditorSuggest: constructor');
-	}
-
-	latestTriggerInfo: EditorSuggestTriggerInfo;
-
-	onTrigger(cursor: EditorPosition, editor: Editor, file: TFile | null): EditorSuggestTriggerInfo | null {
-		console.log('onTrigger', cursor, editor, file);
-
-		const sub = editor.getLine(cursor.line).substring(0, cursor.ch);
-		const match = sub.match(/(\w*)\.canvas$/)?.[1];
-		if (match !== undefined) {
-			this.latestTriggerInfo = {
-				end: cursor,
-				start: {
-					ch: cursor.ch - match.length,
-					line: cursor.line,
-				},
-				query: match,
-			};
-			return this.latestTriggerInfo;
-		}
-
-		return new PatchEditorSuggestTriggerInfo(
-			cursor,
-			cursor,
-			'test'
-		);
-	}
-
-	async getSuggestions(context: EditorSuggestContext): Promise<string[]> {
-		// const result = await next.call(this, context);
-		const result: string[] = [];
-		console.log('context:', context)
-
-		// if (!context?.file) return result;
-
-		// if (context.query.lastIndexOf(".canvas") !== -1 && (this.mode === "block" || this.mode === "heading")) {
-		// 	// Get current canvas path from query string
-		// 	const path = context.query.substring(0, context.query.lastIndexOf(".canvas") + 7);
-
-		// 	const canvasFile = this.app.metadataCache.getFirstLinkpathDest(path, context.file ? context.file.path : "");
-
-		// 	if (!canvasFile) return result;
-
-		// 	// Get nodes from canvas file
-		// 	const nodes = await getNodesFromCanvas(this, canvasFile);
-
-		// 	if (!nodes) return result;
-		// 	const suggestions: any[] = [];
-
-		// 	const cM = /\u00A0/g;
-		// 	let inputStr = "";
-		// 	if (this.mode === "heading") {
-		// 		inputStr = (context.query.replace(cM, " ")).normalize("NFC").split("#")[1];
-		// 	} else if (this.mode === "block") {
-		// 		inputStr = (context.query.replace(cM, " ")).normalize("NFC").split("^")[1];
-		// 	}
-		// 	const query = prepareFuzzySearch(inputStr);
-
-		// 	let textNodes: any[];
-		// 	if (this.mode === "heading") textNodes = nodes.filter((node: any) => (node.label !== undefined));
-		// 	else textNodes = nodes.filter((node: any) => (node.text !== undefined));
-
-		// 	textNodes.forEach((node: any) => {
-		// 		const queryResult = query(node?.text ?? node?.label);
-
-		// 		if (queryResult !== null) {
-		// 			suggestions.push({
-		// 				content: node.text ?? node.label,
-		// 				display: (node.text ?? node.label).replace(/\n/g, " "),
-		// 				path: path,
-		// 				type: "block",
-		// 				file: canvasFile,
-		// 				// @ts-ignore
-		// 				node: {
-		// 					id: node.id,
-		// 					type: "paragraph",
-		// 					position: undefined,
-		// 					children: [{
-		// 						type: "text",
-		// 						value: node.text ?? node.label,
-		// 						position: undefined
-		// 					}]
-		// 				},
-		// 				idMatch: queryResult.matches,
-		// 				matches: null,
-		// 				score: queryResult.score,
-		// 			});
-		// 		}
-		// 	});
-
-		// 	return suggestions.length > 0 ? suggestions : result;
-
-		// }
-		// console.log(result);
-		return result;
-	}
-	renderSuggestion(value: string, el: HTMLElement): void {
-		throw new Error('Method not implemented.');
-	}
-	selectSuggestion(value: string, evt: MouseEvent | KeyboardEvent): void {
-		throw new Error('Method not implemented.');
-	}
-}
