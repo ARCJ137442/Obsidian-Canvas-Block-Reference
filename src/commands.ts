@@ -4,7 +4,7 @@ import { CanvasNodeData } from 'obsidian/canvas';
  * * 白板中复制卡片引用
  */
 
-import { App, ItemView } from 'obsidian';
+import { App, ItemView, Notice } from 'obsidian';
 
 /** 对接外部插件 */
 export const CMD_copyCanvasCardReference = (app: App) => ({
@@ -58,6 +58,9 @@ function copyCanvasCardReference(canvasView: ItemView) {
 
 	// Copy to clipboard
 	copyToClipboard(text.slice(1)); // 移除开头的换行符
+
+	// If copied, notice
+	new Notice(generateNoticeOnCopied(selection, path));
 }
 
 /** 生成文件路径链接 */
@@ -68,4 +71,14 @@ const generateLinkFromCanvasNode = (path: string, node: CanvasNodeData) => (
 /** 🎯封装逻辑，以便日后更改 */
 function copyToClipboard(text: string) {
 	navigator.clipboard.writeText(text);
+}
+
+/** 生成通知信息 */
+function generateNoticeOnCopied(nodes: Set<CanvasNodeData>, path: string): string {
+	let text = `Path${nodes.size > 1 ? 's' : ''} of ${nodes.size} canvas blocks ${nodes.size > 1 ? 'are' : 'is'} copied to clipboard!`
+	// 节点信息
+	for (const node of nodes.values())
+		text += `\n${node.id} @ (${node.x},${node.y})`
+	// 文件信息
+	return text
 }
