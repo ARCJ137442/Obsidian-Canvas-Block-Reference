@@ -8,7 +8,6 @@ import { TFile, ViewState, WorkspaceLeaf } from 'obsidian';
 /** Custom logic when go to file */
 export function openingFile(leaf: WorkspaceLeaf, file: TFile, state?: ViewState) {
 	// Check if file is a canvas file
-	console.log('openingFile', leaf, file, state);
 	// @ts-ignore
 	if (file.extension === "canvas" && state?.eState?.subpath); else return;
 	// @ts-ignore
