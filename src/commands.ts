@@ -31,7 +31,7 @@ export const CMD_copyCanvasCardReference = (app: App) => ({
  * 实际功能：复制白板中卡片的引用
  * * ✨配合「链接自动重定向」使用
  * * 📜原先只对「选择了单个卡片」有用
- *   * 💡或许也可以对多个有用，只需一个复制一行
+ *   * ✨【2025-04-20 16:23:55】现对多个有用，只需一个复制一行
  * * 💡复制时通知（类似Git的扩展→可以去找）
  */
 function copyCanvasCardReference(canvasView: ItemView) {
@@ -48,7 +48,6 @@ function copyCanvasCardReference(canvasView: ItemView) {
 
 	// Get the selected node
 	const selection: Set<CanvasNodeData> = canvas.selection;
-	console.debug("copyCanvasCardReference: selection", selection)
 
 	// Get the first node
 	let text = "";
