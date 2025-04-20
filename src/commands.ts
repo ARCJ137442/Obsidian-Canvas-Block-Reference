@@ -1,3 +1,4 @@
+import { CanvasNodeData } from 'obsidian/canvas';
 /**
  * 可通过快捷键调用的命令
  * * 白板中复制卡片引用
@@ -38,20 +39,31 @@ function copyCanvasCardReference(canvasView: ItemView) {
 	// @ts-ignore
 	const { canvas, file } = canvasView;
 
+	// Get the path of file
+	const path: string | undefined = file?.path  // * 💭【2025-04-20 16:02:40】这里的路径可以优化——只使用文件名
+	if (!path) {
+		console.error("copyCanvasCardReference: can't get file's path", file);
+		return;
+	}
+
 	// Get the selected node
-	const selection = canvas.selection;
+	const selection: Set<CanvasNodeData> = canvas.selection;
 	console.debug("copyCanvasCardReference: selection", selection)
-	if (selection.size !== 1) return; // 若选择了多于一个，则不执行
 
 	// Get the first node
-	const node = selection.values().next().value;
-	// ↓测试
-	try { for (const node of selection.values()) console.debug('copyCanvasCardReference: try to iterate node:', node) } catch (e) { console.error(e) }
-	const text = `[[${file?.path}#^${node.id}]]`;
+	let text = "";
+	for (const node of selection.values())
+		// 支持多个节点
+		text += "\n" + generateLinkFromCanvasNode(path, node);
 
 	// Copy to clipboard
-	copyToClipboard(text);
+	copyToClipboard(text.slice(1)); // 移除开头的换行符
 }
+
+/** 生成文件路径链接 */
+const generateLinkFromCanvasNode = (path: string, node: CanvasNodeData) => (
+	`[[${path}#^${node.id}]]`
+)
 
 /** 🎯封装逻辑，以便日后更改 */
 function copyToClipboard(text: string) {
