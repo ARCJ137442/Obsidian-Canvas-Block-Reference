@@ -1,5 +1,7 @@
 import { App, Editor, EditorPosition, EditorSuggest, EditorSuggestContext, EditorSuggestTriggerInfo, ItemView, OpenViewState, Plugin, prepareFuzzySearch, TFile, ViewState, WorkspaceLeaf } from 'obsidian';
 import { around } from "monkey-around";
+import { CMD_copyCanvasCardReference } from './commands';
+import { openingFile } from './linkRedirection';
 
 export default class CanvasReferencePlugin extends Plugin {
 
@@ -19,54 +21,28 @@ export default class CanvasReferencePlugin extends Plugin {
 	}
 
 	registerCommands() {
-		this.addCommand({
-			id: 'copy-canvas-card-reference',
-			name: 'Copy Canvas Card Reference',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const canvasView = this.app.workspace.getActiveViewOfType(ItemView);
-				if (canvasView?.getViewType() === "canvas") { } else return;
-
-				// If checking is true, we're simply "checking" if the command can be run.
-				if (checking) return true;
-				// If checking is false, then we want to actually perform the operation.
-				// @ts-ignore
-				const canvas = canvasView.canvas;
-
-				// Get the selected node
-				const selection = canvas.selection;
-				if (selection.size !== 1) return;
-
-				// Get the first node
-				const node = selection.values().next().value;
-				// @ts-ignore
-				const text = `[[${canvasView.file?.path}#^${node.id}]]`;
-
-				// Copy to clipboard
-				navigator.clipboard.writeText(text);
-
-				// This command will only show up in Command Palette when the check function returns true
-				return true;
-			}
-		});
+		// 所有命令（根据APP注册（拿到引用））
+		const COMMANDS = [
+			CMD_copyCanvasCardReference(this.app)
+		]
+		// 添加命令
+		for (const cmd of COMMANDS)
+			this.addCommand(cmd);
 	}
 
 	patchWorkspaceLeaf() {
 		// ! ❌↓失败：「注册」不是这么用的，应该是注册一个回调函数
 		// this.register(() => new PatchWorkSpaceLeaf());
 		// return
-		this.register(
-			around(WorkspaceLeaf.prototype, {
-				// 钩子：打开文件
-				openFile: (old) =>
-					async function (file: TFile, state?: ViewState) {
-						// 原先的函数
-						await old.call(this, file, state);
-						// 调用自定义钩子
-						openingFile(this, file, state);
-					}
-			}),
-		);
+		this.register(around(WorkspaceLeaf.prototype, {
+			// 钩子：打开文件
+			openFile: (old) => async function (file: TFile, state?: ViewState) {
+				// 原先的函数
+				await old.call(this, file, state);
+				// 调用自定义钩子
+				openingFile(this, file, state);
+			}
+		}));
 	}
 
 	patchEditorSuggest() {
@@ -105,6 +81,7 @@ export default class CanvasReferencePlugin extends Plugin {
 
 		// ! 🎯【2025-04-19 23:11:35】目标1：修复这个「文件小节建议」
 		// ! 🎯【2025-04-19 23:11:39】目标2：不仅仅通过「内在命令」，还能直接通过白板卡片右键菜单来设置
+		// * 💡【2025-04-20 15:54:40】破局：寻找那些同样有「文件输入建议」的扩展——找到了 <https://github.com/RyotaUshio/obsidian-rendered-block-link-suggestions>
 		const uninstaller = around(fileSuggestConstructor.prototype, {
 			getSuggestions: (next: any) =>
 				async function (context: EditorSuggestContext) {
@@ -179,55 +156,8 @@ export default class CanvasReferencePlugin extends Plugin {
 	}
 }
 
-/** Custom logic when go to file */
-async function openingFile(leaf: WorkspaceLeaf, file: TFile, state?: ViewState) {
-	// Check if file is a canvas file
-	console.log('openingFile', leaf, file, state);
-	// @ts-ignore
-	if (file.extension === "canvas" && state?.eState?.subpath); else return;
-	// @ts-ignore
-	const canvas = leaf.view?.canvas;
-	if (!canvas) return;
 
-	// Get the node
-	// @ts-ignore
-	const id = state.eState.subpath.replace("#\^", "");
-	const node = canvas.nodes.get(id);
-	if (!node) return;
-
-	// Go to the block
-	console.log(`found node with id=${id} in `, canvas, 'node=', node);
-	canvas.selectOnly(node);
-	canvas.zoomToSelection();
-}
-
-
-class PatchWorkSpaceLeaf extends WorkspaceLeaf {
-	async openFile(file: TFile, state?: OpenViewState) {
-		await super.openFile(file, state);
-		console.log('PatchWorkSpaceLeaf: openFile');
-		// Check if file is a canvas file
-		// @ts-ignore
-		if (file.extension === "canvas" && state?.eState?.subpath) {
-			// @ts-ignore
-			const canvas = this.view.canvas;
-			console.log('PatchWorkSpaceLeaf: canvas', canvas);
-			if (!canvas) return;
-
-			// Get the node
-			// @ts-ignore
-			const id = state.eState.subpath.replace("#\^", "");
-			const node = canvas.nodes.get(id);
-			if (!node) return;
-
-			// Go to the block
-			console.info(`found node with id=${id}`, node);
-			canvas.selectOnly(node);
-			canvas.zoomToSelection();
-		}
-	}
-}
-
+// ! ↓下边这些废弃，只保留实际功能
 class PatchEditorSuggestTriggerInfo implements EditorSuggestTriggerInfo {
 	public constructor(
 		public start: EditorPosition,
