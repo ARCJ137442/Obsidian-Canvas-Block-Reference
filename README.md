@@ -7,7 +7,14 @@
 > [原插件](https://github.com/Quorafind/Obsidian-Canvas-Block-Reference)存在部分功能漏洞，目前（版本1.8.9）被 @ARCJ137442 所修复。
 > 目前该仓库代码为作者 @ARCJ137442 自用，新作者本身不直接参与项目的维护，仍然使用原作者的名称与插件id，且尚未有合并到上游的计划。（若需合并上游，个人化的代码风格需要整理）
 > 使用该插件所遇见的问题，请直接在该仓库提issue，无需打扰原作者。 @ARCJ137442 会不定期参与该分支的维护。
-> （以下是原插件文档）
+
+新插件功能一览：
+
+![新预览](https://raw.githubusercontent.com/ARCJ137442/obsidian-canvas-block-reference/master/CanvasBlockReference-preview-new.gif)
+
+（以下是原插件文档）
+
+---
 
 > This plugin would be deprecated if Obsidian Devs support block reference in canvas.
 > Would support migration when the feature is officially supported by Obsidian.
