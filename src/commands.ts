@@ -2,11 +2,14 @@
  * 可通过快捷键调用的命令
  * * 白板中复制卡片引用
  *
+ * TODO: 💡【2025-04-23 16:02:00】基于已发现的canvas API，可以通过特定格式的「坐标链接」来实现「复制坐标链接」与「跳转到指定坐标」的功能
+ *
  * 📌通知功能`Notice`参考自 <https://github.com/Vinzent03/obsidian-git>
  */
 
-import { CanvasNodeData } from 'obsidian/canvas';
+import { Canvas, CanvasElement } from 'obsidian/canvas';
 import { App, ItemView, Notice } from 'obsidian';
+import { getCanvasElementTitle, isCanvasNode } from './utils';
 
 /** 对接外部插件 */
 export const CMD_copyCanvasCardReference = (app: App) => ({
@@ -39,7 +42,9 @@ export const CMD_copyCanvasCardReference = (app: App) => ({
 function copyCanvasCardReference(canvasView: ItemView) {
 	// Get the current canvas
 	// @ts-ignore
-	const { canvas, file } = canvasView;
+	const canvas: Canvas = canvasView.canvas;
+	// @ts-ignore
+	const file: any = canvasView.file;
 
 	// Get the path of file
 	const path: string | undefined = file?.path  // * 💭【2025-04-20 16:02:40】这里的路径可以优化——只使用文件名
@@ -49,7 +54,11 @@ function copyCanvasCardReference(canvasView: ItemView) {
 	}
 
 	// Get the selected node
-	const selection: Set<CanvasNodeData> = canvas.selection;
+	const selection = canvas.selection;
+	if (selection.size === 0) {
+		new Notice("No canvas node/edge selected");
+		return;
+	}
 
 	// Get the first node
 	let text = "";
@@ -65,8 +74,8 @@ function copyCanvasCardReference(canvasView: ItemView) {
 }
 
 /** 生成文件路径链接 */
-const generateLinkFromCanvasNode = (path: string, node: CanvasNodeData) => (
-	`[[${path}#^${node.id}]]`
+const generateLinkFromCanvasNode = (path: string, element: CanvasElement) => (
+	`[[${path}#^${element.id}]]`
 )
 
 /** 🎯封装逻辑，以便日后更改 */
@@ -75,11 +84,17 @@ function copyToClipboard(text: string) {
 }
 
 /** 生成通知信息 */
-function generateNoticeOnCopied(nodes: Set<CanvasNodeData>, path: string): string {
-	let text = `Path${nodes.size > 1 ? 's' : ''} of ${nodes.size} canvas blocks ${nodes.size > 1 ? 'are' : 'is'} copied to clipboard!`
+function generateNoticeOnCopied(elements: Set<CanvasElement>, path: string): string {
+	let text = `${path}: Path${elements.size > 1 ? 's' : ''} of ${elements.size} canvas blocks ${elements.size > 1 ? 'are' : 'is'} copied to clipboard!`
 	// 节点信息
-	for (const node of nodes.values())
-		text += `\n${node.id} @ (${node.x},${node.y})`
+	for (const element of elements.values()) {
+		text += '\n'
+		text += isCanvasNode(element) ? `Node` : `Link`
+		text += ` \"${getCanvasElementTitle(element)}\"`
+		if (isCanvasNode(element))
+			text += ` @ (${element.x},${element.y})`
+		text += ` with id = ${element.id}`
+	}
 	// 文件信息
 	return text
 }

@@ -6,7 +6,8 @@
 
 import { App, Editor, EditorPosition, EditorSuggest, EditorSuggestContext, EditorSuggestTriggerInfo, ItemView, OpenViewState, Plugin, prepareFuzzySearch, TFile, ViewState, WorkspaceLeaf } from 'obsidian';
 import { BlockLinkInfo, BuiltInSuggest, BuiltInSuggestItem } from './typings/suggest';
-import { CanvasNodeData } from 'obsidian/canvas';
+import { CanvasNode } from 'obsidian/canvas';
+import { getCanvasElementTitle } from './utils';
 
 // /**
 //  * 实际的「文件输入建议」功能
@@ -73,7 +74,7 @@ function tryGetLinkMode(query: string): 'heading' | 'block' | null {
 
 async function tryGetCanvasNodes(app: App, context: EditorSuggestContext): Promise<{
 	query: string,
-	nodes: CanvasNodeData[],
+	nodes: CanvasNode[],
 	path: string,
 	canvasFile: TFile,
 } | null> {
@@ -112,7 +113,7 @@ async function getNodesFromCanvas(app: App, canvasFile: TFile) {
 }
 
 /** 根据白板数据生成相关建议 */
-function generateSuggestions(context: EditorSuggestContext, query: string, nodes: CanvasNodeData[], path: string, file: TFile) {
+function generateSuggestions(context: EditorSuggestContext, query: string, nodes: CanvasNode[], path: string, file: TFile) {
 	// 链接的格式：标题还是块，还是没有
 	const mode = tryGetLinkMode(query);
 	if (mode === null) return null;
@@ -138,20 +139,20 @@ function generateSuggestions(context: EditorSuggestContext, query: string, nodes
 	// * 💡或许后续还能根据「首行是否为标题」来过滤？
 	let nodePredicate;
 	// 针对纯文本节点 text
-	const hasText = (node: CanvasNodeData) => node?.text !== undefined;
+	const hasText = (node: CanvasNode) => 'text' in node;
 	// 针对纯文本节点 group
-	const hasLabel = (node: CanvasNodeData) => node?.label !== undefined;
+	const hasLabel = (node: CanvasNode) => 'label' in node;
 	switch (mode) {
 		case "heading":
-			nodePredicate = (node: CanvasNodeData) => hasText(node);
+			nodePredicate = (node: CanvasNode) => hasText(node);
 			break;
 		case "block":
-			nodePredicate = (node: CanvasNodeData) => hasText(node) || hasLabel(node);
+			nodePredicate = (node: CanvasNode) => hasText(node) || hasLabel(node);
 			break;
 		default:
-			nodePredicate = (_: CanvasNodeData) => true;
+			nodePredicate = (_: CanvasNode) => true;
 	}
-	const textNodes: CanvasNodeData[] = nodes.filter(nodePredicate);
+	const textNodes: CanvasNode[] = nodes.filter(nodePredicate);
 
 	// console.log(
 	// 	'mode:', mode,
@@ -162,7 +163,8 @@ function generateSuggestions(context: EditorSuggestContext, query: string, nodes
 
 	for (const node of textNodes) {
 		// 生成建议：内容
-		const content = node.text ?? node.label;
+		const content = getCanvasElementTitle(node);
+		if (!content) continue;
 		const queryResult = searchQuery(content);
 		if (queryResult === null) continue;
 		// console.log(`queryResult for node ${node.id}:`, queryResult, node);
