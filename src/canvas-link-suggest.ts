@@ -5,9 +5,9 @@
  */
 
 import { App, Editor, EditorPosition, EditorSuggest, EditorSuggestContext, EditorSuggestTriggerInfo, ItemView, OpenViewState, Plugin, prepareFuzzySearch, TFile, ViewState, WorkspaceLeaf } from 'obsidian';
-import { BlockLinkInfo, BuiltInSuggest, BuiltInSuggestItem } from '../typings/suggest';
+import { BlockLinkInfo, BuiltInSuggest, BuiltInSuggestItem } from './typings/suggest';
 import { CanvasNode } from 'obsidian/canvas';
-import { getCanvasElementTitle } from '../utils';
+import { getCanvasElementTitle } from './utils';
 
 // /**
 //  * 实际的「文件输入建议」功能

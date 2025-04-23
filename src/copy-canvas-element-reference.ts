@@ -9,7 +9,7 @@
 
 import { Canvas, CanvasEdge, CanvasElement, CanvasNode } from 'obsidian/canvas';
 import { App, Menu, MenuItem, Notice, TFile } from 'obsidian';
-import { getActiveCanvasView, getCanvasElementTitle, isCanvasNode, ParamEventRegister } from '../utils';
+import { getActiveCanvasView, getCanvasElementTitle, isCanvasNode, ParamEventRegister } from './utils';
 
 /**
  * 注册事件：右键菜单复制选区内容

@@ -1,10 +1,10 @@
 import { EditorSuggestContext, Plugin, prepareFuzzySearch, TFile, ViewState, WorkspaceLeaf } from 'obsidian';
 import { around } from "monkey-around";
-import { CMD_copyCanvasCardReference, EVENT_copyCanvasCardReferenceMenu } from './commands/copy-element-reference';
-import { openingFile } from './link-redirection';
+import { CMD_copyCanvasCardReference, EVENT_copyCanvasCardReferenceMenu } from './copy-canvas-element-reference';
+import { openingFile } from './canvas-link-redirection';
 import { BuiltInSuggest, BuiltInSuggestItem } from './typings/suggest';
-import { suggestAround } from './suggestions/canvas-card-suggest';
-import { CMD_reverseSelectedCanvasEdges } from './commands/reverse-edge';
+import { suggestAround } from './canvas-link-suggest';
+import { CMD_reverseSelectedCanvasEdges } from './reverse-edge';
 // import { CMD_selectAllEdgesInCanvas } from './commands/select-all-edges';
 // ! ✅「选择所有连边」的功能，在AdvancedCanvas中有了
 
