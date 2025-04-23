@@ -23,6 +23,13 @@ declare module "obsidian/canvas" {
 
 		// 反向引用
 		canvas: Canvas
+
+		/** 选中该元素 */
+		select(): void
+		/** 取消选中该元素 */
+		deselect(): void
+		/** 聚焦该元素（eg.使之可编辑） */
+		focus(): void
 	}
 
 	/** 一个白板节点/卡片 */
@@ -37,6 +44,62 @@ declare module "obsidian/canvas" {
 
 		/** 构造函数 */
 		constructor(canvas: Canvas, id: string)
+
+		/** 获取JSON形式的数据 */
+		getData(): CanvasNodeData
+		/**
+		 * 设置JSON形式的数据
+		 * * 📌立马更新
+		 */
+		setData(data: CanvasNodeData): void
+
+		// 批量添加的属性
+		unknownData: object
+		initialized: boolean
+		zIndex: number
+		aspectRatio: number
+		isEditing: boolean
+		destroyed: boolean
+		renderedZIndex: number
+		nodeEl: object
+		isContentMounted: boolean
+		alwaysKeepLoaded: boolean
+		resizeDirty: boolean
+		setIsEditing: Function
+		initialize: Function
+		containerEl: object
+		contentEl: object
+		contentBlockerEl: object
+		placeholderEl: object
+		child: object
+		setText: Function
+		render: Function
+		showMenu: Function
+		convertToFile: Function
+		blur: Function
+		destroy: Function
+		unloadChild: Function
+		startEditing: Function
+		isEditable: Function
+		onClick: Function
+		onResizeDblclick: Function
+		moveAndResize: Function
+		attach: Function
+		preDetach: Function
+		detach: Function
+		updateBreakpoint: Function
+		mountContent: Function
+		unmountContent: Function
+		setColor: Function
+		moveTo: Function
+		resize: Function
+		updateZIndex: Function
+		renderZIndex: Function
+		onPointerdown: Function
+		onContextMenu: Function
+		onResizePointerdown: Function
+		onConnectionPointerdown: Function
+		getConnectedFiles: Function
 	}
 
 	/** 一个白板连线/边 */
@@ -54,6 +117,42 @@ declare module "obsidian/canvas" {
 			side: 'up' | 'down' | 'left' | 'right',
 			end: 'none' | 'arrow' | unknown
 		}
+
+		/** 获取JSON形式的数据 */
+		getData(): CanvasEdgeData
+		/**
+		 * 设置JSON形式的数据
+		 * * 📌立马更新
+		 */
+		setData(data: CanvasEdgeData): void
+
+		// 批量添加的属性
+		unknownData: object
+		initialized: boolean
+		lineGroupEl: object
+		lineEndGroupEl: object
+		render: Function
+		getCenter: Function
+		initialize: Function
+		path: object
+		bezier: object
+		fromLineEnd: object
+		toLineEnd: object
+		center: undefined
+		attach: Function
+		detach: Function
+		destroy: Function
+		setColor: Function
+		setLabel: Function
+		update: Function
+		blur: Function
+		editLabel: Function
+		updatePath: Function
+		createEdgeEnd: Function
+		onClick: Function
+		onContextMenu: Function
+		showMenu: Function
+		onConnectionPointerdown: Function
 	}
 
 	/**
@@ -130,11 +229,16 @@ declare module "obsidian/canvas" {
 	}
 
 	/**
-		 * Obsidian中存储数据和方法的白板对象
-		 * * 📄对应`leaf.view?.canvas`，这儿的Leaf是{@link WorkspaceLeaf}，`leaf.view`对应{@link View}
-		 * * ✨控制白板：移动视图、选择/取消 节点の选择
-		 * * ✨获取白板信息：所有节点
-		 */
+	 * Obsidian中存储数据和方法的白板对象
+	 * * 📄对应`leaf.view?.canvas`，这儿的Leaf是{@link WorkspaceLeaf}，`leaf.view`对应{@link View}
+	 * * ✨控制白板：移动视图、选择/取消 节点の选择
+	 * * ✨获取白板信息：所有节点
+	 *
+	 * 📝从Obsidian窗口中开发者工具for-in出来属性，填充类型注释
+	 * * 📄命令形式（对于c）：`for (const i in c) console.log(i, ':',typeof c[i],'=',c[i])`
+	 * * 📄函数形式：`function logKeys(c) { for (const i in c) console.log(`${i}:`, typeof c[i],'=',c[i]) }`
+	 * * 📄字符串形式（用于类型注释）：`function getKeys(c) { let s = ''; for (const i in c) s += `${i}: ${typeof c[i]}\n`.replace('function', 'Function'); return s }`
+	 */
 	interface Canvas {
 		// 反向引用
 		app: App
@@ -157,8 +261,7 @@ declare module "obsidian/canvas" {
 			y: number
 		}
 
-		// 📄从Obsidian窗口中开发者工具for-in出来的属性
-		// `for (const i in c) console.log(i, ':',typeof c[i],'=',c[i])`
+		/** 白板配置（具体使用方式未知） */
 		config: {
 			zoomMultiplier: number
 			objectSnapDistance: number

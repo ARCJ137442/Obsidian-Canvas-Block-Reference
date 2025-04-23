@@ -3,7 +3,8 @@
  */
 
 import { TFile, ViewState, WorkspaceLeaf } from 'obsidian';
-import { Canvas } from 'obsidian/canvas';
+import { Canvas, CanvasEdge, CanvasElement } from 'obsidian/canvas';
+import { getCanvasElementById } from './utils';
 
 /** Custom logic when go to file */
 export function openingFile(leaf: WorkspaceLeaf, file: TFile, state?: ViewState) {
@@ -19,6 +20,10 @@ export function openingFile(leaf: WorkspaceLeaf, file: TFile, state?: ViewState)
 	if (!state?.eState?.subpath) return;
 	// @ts-ignore
 	const subpath: string = state.eState.subpath
+	// TODO: 💡跳转到指定坐标（通过特殊格式）
+	// TODO: 💡跳转到多个元素（选中多个并跳转视图）
+	// TODO: 💡选中所有边
+	// TODO: 💡反转连边
 	// Get the node id
 	const id = subpath.replace("#\^", "");
 	redirectToElement(canvas, id)
@@ -32,7 +37,7 @@ export function openingFile(leaf: WorkspaceLeaf, file: TFile, state?: ViewState)
  */
 function redirectToElement(canvas: Canvas, elementId: string) {
 	// Try to get element in canvas
-	const element = canvas.nodes.get(elementId) ?? canvas.edges.get(elementId);
+	const element = getCanvasElementById(canvas, elementId);
 	if (!element) {
 		console.warn(`element with id=${elementId} not found in `, canvas);
 		return;

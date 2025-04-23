@@ -9,7 +9,7 @@
 
 import { Canvas, CanvasElement } from 'obsidian/canvas';
 import { App, ItemView, Notice } from 'obsidian';
-import { getCanvasElementTitle, isCanvasNode } from './utils';
+import { getCanvasElementTitle, isCanvasNode } from '../utils';
 
 /** 对接外部插件 */
 export const CMD_copyCanvasCardReference = (app: App) => ({
