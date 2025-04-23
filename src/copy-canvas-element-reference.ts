@@ -9,46 +9,30 @@
 
 import { Canvas, CanvasEdge, CanvasElement, CanvasNode } from 'obsidian/canvas';
 import { App, Menu, MenuItem, Notice, TFile } from 'obsidian';
-import { getActiveCanvasView, getCanvasElementTitle, isCanvasNode, ParamEventRegister } from './utils';
+import { getActiveCanvasView, getAppFromCCC, getCanvasElementTitle, getFileLink, isCanvasNode, ParamEventRegister, registerCanvasMenuItem } from './utils';
 
 /**
  * 注册事件：右键菜单复制选区内容
  * * 🔗参考：<https://forum.obsidian.md/t/creating-an-event-for-menus-on-canvas-items/85646/7>
  */
-export const EVENT_copyCanvasCardReferenceMenu: ParamEventRegister = {
+export const EVENT_copyCanvasCardReferenceMenu: ParamEventRegister = registerCanvasMenuItem({
 	// 在白板中右键卡片、边或选中多个元素时，添加菜单项
 	on: ["canvas:edge-menu", "canvas:node-menu", "canvas:selection-menu"],
-	callback: (menu: Menu, toBeClick: Canvas | CanvasEdge | CanvasNode) => {
-		menu.addItem((item: MenuItem) => {
-			item.setTitle("Copy link(s) of selected items in canvas")
-				.setIcon("link")
-				.setSection('action')
-				.onClick((_event: unknown) => {
-					const app = getAppFromCCC(toBeClick);
-					if (!app) {
-						new Notice("copyCanvasCardReferenceMenu: Can't find the app instance");
-						return;
-					}
+	item: {
+		title: "Copy link(s) of selected items in canvas",
+		icon: "link",
+		section: "action",
+		onClick: (app: App, _item: MenuItem, _event: KeyboardEvent | MouseEvent) => {
+			// Conditions to check
+			const result = getActiveCanvasView(app);
+			if (!result) return;
 
-					// Conditions to check
-					const result = getActiveCanvasView(app);
-					if (!result) return;
-
-					// Copy card reference
-					const { canvas, file } = result
-					copyCanvasCardReference(canvas, file);
-				})
-		})
+			// Copy card reference
+			const { canvas, file } = result
+			copyCanvasCardReference(canvas, file, app);
+		}
 	}
-}
-
-/** 从白板或其元素中获得APP，以便读写文件 */
-function getAppFromCCC(obj: Canvas | CanvasElement): App {
-	return (
-		(obj as Canvas)?.app ?? // Canvas
-		(obj as CanvasElement).canvas.app // CanvasElement
-	)
-}
+})
 
 /** 对接外部插件 */
 export const CMD_copyCanvasCardReference = (app: App) => ({
@@ -65,7 +49,7 @@ export const CMD_copyCanvasCardReference = (app: App) => ({
 
 		// Copy card reference
 		const { canvas, file } = result
-		copyCanvasCardReference(canvas, file);
+		copyCanvasCardReference(canvas, file, app);
 
 		// This command will only show up in Command Palette when the check function returns true
 		return true;
@@ -79,9 +63,14 @@ export const CMD_copyCanvasCardReference = (app: App) => ({
  *   * ✨【2025-04-20 16:23:55】现对多个有用，只需一个复制一行
  * * 💡复制时通知（类似Git的扩展→可以去找）
  */
-function copyCanvasCardReference(canvas: Canvas, file: TFile | null): void {
+function copyCanvasCardReference(canvas: Canvas, file: TFile | null, app?: App): void {
+	// Verify the file
+	if (!file) {
+		console.error("copyCanvasCardReference: can't get file", file);
+		return;
+	}
 	// Get the path of file
-	const path: string | undefined = file?.path  // * 💭【2025-04-20 16:02:40】这里的路径可以优化——只使用文件名
+	const path: string | undefined = app ? getFileLink(app, file) : file?.path  // * 💭【2025-04-20 16:02:40】这里的路径可以优化——只使用文件名
 	if (!path) {
 		console.error("copyCanvasCardReference: can't get file's path", file);
 		return;

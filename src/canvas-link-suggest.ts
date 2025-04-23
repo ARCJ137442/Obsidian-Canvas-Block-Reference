@@ -4,10 +4,10 @@
  * * 💡【2025-04-20 23:59:34】后续或可参考 <https://github.com/Doggy-Footprint/Suggest-Notes/blob/master/obsidian_srcs/main.ts#L189> 的方案，更加文雅
  */
 
-import { App, Editor, EditorPosition, EditorSuggest, EditorSuggestContext, EditorSuggestTriggerInfo, ItemView, OpenViewState, Plugin, prepareFuzzySearch, TFile, ViewState, WorkspaceLeaf } from 'obsidian';
+import { App, Editor, EditorPosition, EditorSuggest, EditorSuggestContext, EditorSuggestTriggerInfo, ItemView, MetadataCache, OpenViewState, Plugin, prepareFuzzySearch, TFile, ViewState, WorkspaceLeaf } from 'obsidian';
 import { BlockLinkInfo, BuiltInSuggest, BuiltInSuggestItem } from './typings/suggest';
 import { CanvasNode } from 'obsidian/canvas';
-import { getCanvasElementTitle } from './utils';
+import { getCanvasElementTitle, getFileLink } from './utils';
 
 // /**
 //  * 实际的「文件输入建议」功能
@@ -113,7 +113,7 @@ async function getNodesFromCanvas(app: App, canvasFile: TFile) {
 }
 
 /** 根据白板数据生成相关建议 */
-function generateSuggestions(context: EditorSuggestContext, query: string, nodes: CanvasNode[], path: string, file: TFile) {
+function generateSuggestions(context: EditorSuggestContext, query: string, nodes: CanvasNode[], app: App, file: TFile) {
 	// 链接的格式：标题还是块，还是没有
 	const mode = tryGetLinkMode(query);
 	if (mode === null) return null;
@@ -198,7 +198,7 @@ function generateSuggestions(context: EditorSuggestContext, query: string, nodes
 			type: "block",
 			content,
 			display: content.replace(/\n/g, " "),
-			path,
+			path: getFileLink(app, file),
 			subpath: node.id,
 			file,
 			idMatch: matches,
@@ -241,7 +241,7 @@ async function getSuggestions(context: EditorSuggestContext, app: App): Promise<
 	const { query, nodes, path, canvasFile } = nodesResult;
 
 	// 开始根据节点提供建议 //
-	return generateSuggestions(context, query, nodes, path, canvasFile);
+	return generateSuggestions(context, query, nodes, app, canvasFile);
 }
 
 /** 用于外部的 around 函数，拦截式给外部添加功能 */
