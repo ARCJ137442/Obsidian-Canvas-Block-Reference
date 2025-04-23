@@ -3,7 +3,7 @@
  */
 
 import { TFile, ViewState, WorkspaceLeaf } from 'obsidian';
-import { Canvas, CanvasEdge, CanvasElement } from 'obsidian/canvas';
+import { Canvas } from 'obsidian/canvas';
 import { getCanvasElementById } from './utils';
 
 /** Custom logic when go to file */
@@ -42,7 +42,14 @@ function redirectToElement(canvas: Canvas, elementId: string) {
 	}
 	else console.log(`found element with id=${elementId} in `, canvas, 'element=', element);
 
+	const f = () => {
+		canvas.selectOnly(element);
+		canvas.zoomToSelection();
+	}
 	// Go to the block
-	canvas.selectOnly(element);
-	canvas.zoomToSelection();
+	// * 📌修复bug by 延时：若在白板的节点上点击链接，会被鼠标点击事件干扰而导致失去选择
+	setTimeout && setTimeout(f, MIN_DELAY_TO_AVOID_MOUSE_CLICK_EVENT) || f()
 }
+
+/** 能避免鼠标点击事件的最小延迟 */
+const MIN_DELAY_TO_AVOID_MOUSE_CLICK_EVENT = 0.001
