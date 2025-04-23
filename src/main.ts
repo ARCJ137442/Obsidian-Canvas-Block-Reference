@@ -4,6 +4,9 @@ import { CMD_copyCanvasCardReference } from './commands/copy-element-reference';
 import { openingFile } from './link-redirection';
 import { BuiltInSuggest, BuiltInSuggestItem } from './typings/suggest';
 import { suggestAround } from './suggestions/canvas-card-suggest';
+import { CMD_reverseSelectedCanvasEdges } from './commands/reverse-edge';
+// import { CMD_selectAllEdgesInCanvas } from './commands/select-all-edges';
+// ! ✅「选择所有连边」的功能，在AdvancedCanvas中有了
 
 export default class CanvasReferencePlugin extends Plugin {
 
@@ -25,11 +28,12 @@ export default class CanvasReferencePlugin extends Plugin {
 	registerCommands() {
 		// 所有命令（根据APP注册（拿到引用））
 		const COMMANDS = [
-			CMD_copyCanvasCardReference(this.app)
+			CMD_copyCanvasCardReference,
+			CMD_reverseSelectedCanvasEdges,
 		]
 		// 添加命令
-		for (const cmd of COMMANDS)
-			this.addCommand(cmd);
+		for (const cmdF of COMMANDS)
+			this.addCommand(cmdF(this.app));
 	}
 
 	patchWorkspaceLeaf() {

@@ -8,8 +8,8 @@
  */
 
 import { Canvas, CanvasElement } from 'obsidian/canvas';
-import { App, ItemView, Notice } from 'obsidian';
-import { getCanvasElementTitle, isCanvasNode } from '../utils';
+import { App, Notice, TFile } from 'obsidian';
+import { getActiveCanvasView, getCanvasElementTitle, isCanvasNode } from '../utils';
 
 /** 对接外部插件 */
 export const CMD_copyCanvasCardReference = (app: App) => ({
@@ -17,15 +17,16 @@ export const CMD_copyCanvasCardReference = (app: App) => ({
 	name: 'Copy Canvas Card Reference',
 	checkCallback(checking: boolean) {
 		// Conditions to check
-		const canvasView = app.workspace.getActiveViewOfType(ItemView);
-		if (canvasView?.getViewType() === "canvas") { } else return;
+		const result = getActiveCanvasView(app);
+		if (!result) return;
 
 		// If checking is true, we're simply "checking" if the command can be run.
 		if (checking) return true;
 		// If checking is false, then we want to actually perform the operation.
 
 		// Copy card reference
-		copyCanvasCardReference(canvasView);
+		const { canvas, file } = result
+		copyCanvasCardReference(canvas, file);
 
 		// This command will only show up in Command Palette when the check function returns true
 		return true;
@@ -39,13 +40,7 @@ export const CMD_copyCanvasCardReference = (app: App) => ({
  *   * ✨【2025-04-20 16:23:55】现对多个有用，只需一个复制一行
  * * 💡复制时通知（类似Git的扩展→可以去找）
  */
-function copyCanvasCardReference(canvasView: ItemView) {
-	// Get the current canvas
-	// @ts-ignore
-	const canvas: Canvas = canvasView.canvas;
-	// @ts-ignore
-	const file: any = canvasView.file;
-
+function copyCanvasCardReference(canvas: Canvas, file: TFile | null): void {
 	// Get the path of file
 	const path: string | undefined = file?.path  // * 💭【2025-04-20 16:02:40】这里的路径可以优化——只使用文件名
 	if (!path) {

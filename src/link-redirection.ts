@@ -22,8 +22,6 @@ export function openingFile(leaf: WorkspaceLeaf, file: TFile, state?: ViewState)
 	const subpath: string = state.eState.subpath
 	// TODO: 💡跳转到指定坐标（通过特殊格式）
 	// TODO: 💡跳转到多个元素（选中多个并跳转视图）
-	// TODO: 💡选中所有边
-	// TODO: 💡反转连边
 	// Get the node id
 	const id = subpath.replace("#\^", "");
 	redirectToElement(canvas, id)

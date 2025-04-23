@@ -1,4 +1,4 @@
-import { App, View, WorkspaceLeaf } from 'obsidian';
+import { App, FileView, View, WorkspaceLeaf } from 'obsidian';
 declare module "obsidian/canvas" {
 
 	/** 一个矩形区域 */
@@ -24,11 +24,20 @@ declare module "obsidian/canvas" {
 		// 反向引用
 		canvas: Canvas
 
-		/** 选中该元素 */
+		/**
+		 * 选中该元素
+		 * * ⚠️执行后白板不会响应，建议使用`Canvas.select`代替
+		*/
 		select(): void
-		/** 取消选中该元素 */
+		/**
+		 * 取消选中该元素
+		 * * ⚠️执行后白板不会响应，建议使用`Canvas.deselect`代替
+		*/
 		deselect(): void
-		/** 聚焦该元素（eg.使之可编辑） */
+		/**
+		 * 聚焦该元素（eg.使之可编辑）
+		 * * ⚠️执行后白板不会响应，建议使用`Canvas.focus`代替
+		 */
 		focus(): void
 	}
 
@@ -105,7 +114,7 @@ declare module "obsidian/canvas" {
 	/** 一个白板连线/边 */
 	class CanvasEdge extends CanvasElement {
 		/** 边上的标签 */
-		label?: string
+		label: string | undefined
 
 		from: {
 			node: CanvasNode,
@@ -226,6 +235,11 @@ declare module "obsidian/canvas" {
 	interface ParamCanvasCreateGroupNode extends ParamCanvasCreateNode {
 		/** 分组节点的标签名 */
 		label: string
+	}
+
+	abstract class CanvasView extends FileView {
+		/** 白板视图中的当前白板 */
+		canvas: Canvas
 	}
 
 	/**
