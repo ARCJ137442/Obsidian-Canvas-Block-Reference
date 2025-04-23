@@ -8,7 +8,7 @@
 import { ZH_CN, EN_US } from './i18n';
 import { App, MenuItem } from "obsidian";
 import { Canvas, CanvasEdge, CanvasEdgeData } from "obsidian/canvas";
-import { getActiveCanvasView, isCanvasEdge, ParamEventRegister, registerCanvasMenuItem } from "src/utils";
+import { getActiveCanvasView, isCanvasEdge, isCanvasNode, ParamEventRegister, registerCanvasMenuItem, traverseSelectedEdgesIncludesBetweens } from "src/utils";
 import { i18nText } from "./i18n";
 
 
@@ -27,12 +27,14 @@ export const EVENT_reverseEdges = registerCanvasMenuItem({
 		icon: "repeat", // https://lucide.dev/icons/repeat
 		section: "action",
 		onClick: (canvas: Canvas, _item: MenuItem, _event: KeyboardEvent | MouseEvent) => {
-			// 获取所有选中的连边
-			for (const element of canvas.selection) {
-				if (isCanvasEdge(element))
-					// 反转
-					reverseEdge(element)
-			}
+			/** 标记哪些边被转换过 */
+			const turned: { [k: string]: boolean } = {}
+			traverseSelectedEdgesIncludesBetweens(canvas, (e: CanvasEdge) => {
+				// 已标记的边不再处理
+				if (e.id in turned) return
+				turned[e.id] = true
+				reverseEdge(e)
+			})
 		}
 	}
 })
@@ -56,12 +58,15 @@ export const CMD_reverseSelectedCanvasEdges = (app: App) => ({
 		// Copy card reference
 		const { canvas } = result
 
-		// 获取所有选中的连边
-		for (const element of canvas.selection) {
-			if (isCanvasEdge(element))
-				// 反转
-				reverseEdge(element)
-		}
+		// 获取边并反转
+		/** 标记哪些边被转换过 */
+		const turned: { [k: string]: boolean } = {}
+		traverseSelectedEdgesIncludesBetweens(canvas, (e: CanvasEdge) => {
+			// 已标记的边不再处理
+			if (e.id in turned) return
+			turned[e.id] = true
+			reverseEdge(e)
+		})
 
 		// This command will only show up in Command Palette when the check function returns true
 		return true;
@@ -70,6 +75,7 @@ export const CMD_reverseSelectedCanvasEdges = (app: App) => ({
 
 /** 反转一个边对象 */
 export function reverseEdge(e: CanvasEdge): void {
+	console.log("reverseEdge", e)
 	// 获取一个data对象（与e引用解绑）
 	const data = e.getData();
 	// 反转之

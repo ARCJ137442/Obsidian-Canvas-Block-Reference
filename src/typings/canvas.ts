@@ -312,7 +312,10 @@ declare module "obsidian/canvas" {
 		/** 设置白板数据（JSON） */
 		setData(data: CanvasData): CanvasData
 
-		/** 为白板节点获取连边 */
+		/** 
+		 * 为白板节点获取连边
+		 * * ⚠️不仅仅有发出的边，还有收到的边
+		 */
 		getEdgesForNode(node: CanvasNode): CanvasEdge[]
 
 
