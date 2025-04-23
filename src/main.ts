@@ -1,9 +1,9 @@
 import { EditorSuggestContext, Plugin, prepareFuzzySearch, TFile, ViewState, WorkspaceLeaf } from 'obsidian';
 import { around } from "monkey-around";
 import { CMD_copyCanvasCardReference } from './commands';
-import { openingFile } from './linkRedirection';
+import { openingFile } from './link-redirection';
 import { BuiltInSuggest, BuiltInSuggestItem } from './typings/suggest';
-import { suggestAround } from './cardSuggest';
+import { suggestAround } from './card-suggest';
 
 export default class CanvasReferencePlugin extends Plugin {
 
