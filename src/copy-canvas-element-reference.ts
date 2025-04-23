@@ -136,10 +136,15 @@ function generateNoticeOnCopied(elements: Set<CanvasElement>, path: string): str
 	for (const element of elements.values()) {
 		// 追加
 		text += `\n${++i}. `
-		text += i18nText({
-			[EN_US]: isCanvasNode(element) ? `Node` : `Link`,
-			[ZH_CN]: isCanvasNode(element) ? `节点` : `连边`,
+		// 把上边text += 的代码换一下，把isCanvasNode提取到i18nText外边去，变成isCanvasNode ? i18nText({...}) : i18nText({...})
+		text += isCanvasNode(element) ? i18nText({
+			[EN_US]: "Node",
+			[ZH_CN]: "节点",
+		}) : i18nText({
+			[EN_US]: "Link",
+			[ZH_CN]: "连边",
 		})
+
 		text += ` ^${element.id}`
 		let title = getCanvasTitleOneLine(element, MAX_TITLE_PREVIEW_LENGTH)
 		if (title) {
