@@ -1,6 +1,12 @@
 import { App, FileView, ItemView, TFile } from "obsidian";
 import { Canvas, CanvasEdge, CanvasElement, CanvasNode, CanvasView } from "obsidian/canvas";
 
+/** 用于注册事件的参数类型 */
+export type ParamEventRegister = {
+	on: string | string[],
+	callback: Function
+}
+
 /**
  * 功能：判断白板内元素是否为节点
  * * 🚩因为Obsidian API没有提供canvas的类，因此暂时使用属性来判断
@@ -8,6 +14,7 @@ import { Canvas, CanvasEdge, CanvasElement, CanvasNode, CanvasView } from "obsid
 export function isCanvasNode(element: CanvasElement): element is CanvasNode {
 	return 'x' in element && 'y' in element;
 }
+
 /**
  * 功能：判断白板内元素是否为连边
  * * 🚩因为Obsidian API没有提供canvas的类，因此暂时使用属性来判断
