@@ -1,6 +1,9 @@
 import { App, FileView, View, WorkspaceLeaf } from 'obsidian';
 declare module "obsidian/canvas" {
 
+	/** 白板元素的共同类型 */
+	type CanvasElementData = CanvasEdgeData | CanvasNodeData
+
 	/** 一个矩形区域 */
 	interface BoundedBox {
 		minX: number
@@ -10,13 +13,21 @@ declare module "obsidian/canvas" {
 	}
 
 	/** 白板中的元素，可以是节点 也可以是边 */
-	class CanvasElement {
+	abstract class CanvasElement<DataType extends CanvasElementData = CanvasElementData> {
 		/** id */
 		id: string
 
 		/** 碰撞箱 */
 		bbox: BoundedBox
 		getBBox(): BoundedBox
+
+		/** 获取JSON形式的数据 */
+		getData(): DataType
+		/**
+		 * 设置JSON形式的数据
+		 * * 📌立马更新
+		 */
+		setData(data: DataType): void
 
 		/** 颜色 */
 		color: string
@@ -42,7 +53,7 @@ declare module "obsidian/canvas" {
 	}
 
 	/** 一个白板节点/卡片 */
-	class CanvasNode extends CanvasElement {
+	class CanvasNode extends CanvasElement<CanvasNodeData> {
 		// 反向引用
 		app: App
 
@@ -53,14 +64,6 @@ declare module "obsidian/canvas" {
 
 		/** 构造函数 */
 		constructor(canvas: Canvas, id: string)
-
-		/** 获取JSON形式的数据 */
-		getData(): CanvasNodeData
-		/**
-		 * 设置JSON形式的数据
-		 * * 📌立马更新
-		 */
-		setData(data: CanvasNodeData): void
 
 		// 批量添加的属性
 		unknownData: object
@@ -112,7 +115,7 @@ declare module "obsidian/canvas" {
 	}
 
 	/** 一个白板连线/边 */
-	class CanvasEdge extends CanvasElement {
+	class CanvasEdge extends CanvasElement<CanvasEdgeData> {
 		/** 边上的标签 */
 		label: string | undefined
 
@@ -126,14 +129,6 @@ declare module "obsidian/canvas" {
 			side: 'up' | 'down' | 'left' | 'right',
 			end: 'none' | 'arrow' | unknown
 		}
-
-		/** 获取JSON形式的数据 */
-		getData(): CanvasEdgeData
-		/**
-		 * 设置JSON形式的数据
-		 * * 📌立马更新
-		 */
-		setData(data: CanvasEdgeData): void
 
 		// 批量添加的属性
 		unknownData: object
