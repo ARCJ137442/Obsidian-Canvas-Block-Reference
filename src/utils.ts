@@ -74,12 +74,17 @@ export function getActiveCanvasView(app: App): {
 	return { view, file, canvas }
 }
 
+/** 从白板或其元素中获得Canvas对象，以便和整个白板交互 */
+export function getCanvasFromCCC(obj: Canvas | CanvasElement): Canvas {
+	return (
+		(obj as CanvasElement).canvas ?? // CanvasElement
+		obj as Canvas // Canvas
+	)
+}
+
 /** 从白板或其元素中获得APP，以便读写文件 */
 export function getAppFromCCC(obj: Canvas | CanvasElement): App {
-	return (
-		(obj as Canvas)?.app ?? // Canvas
-		(obj as CanvasElement).canvas.app // CanvasElement
-	)
+	return getCanvasFromCCC(obj).app
 }
 
 /**
@@ -87,8 +92,11 @@ export function getAppFromCCC(obj: Canvas | CanvasElement): App {
  */
 export type ParamRegisterCanvasMenuItemWhenCanvasEvent = "canvas:edge-menu" | "canvas:node-menu" | "canvas:selection-menu"
 export interface ParamRegisterCanvasMenuItemItem {
-	/** 标题 | {@link MenuItem.setTitle} */
-	title?: string
+	/**
+	 * 标题 | {@link MenuItem.setTitle}
+	 * * 📌允许根据语言动态计算
+	 */
+	title?: string | ((menu: Menu) => string)
 
 	/** 是否检查（❓） | {@link MenuItem.setChecked} */
 	checked?: boolean | null
@@ -108,7 +116,8 @@ export interface ParamRegisterCanvasMenuItemItem {
 	/** 所属小节（分组用） | {@link MenuItem.setSection} */
 	section?: string
 
-	onClick?: (app: App, item: MenuItem, event: KeyboardEvent | MouseEvent) => any
+	/** 触发钩子：点击后会执行什么 */
+	onClick?: (canvas: Canvas, item: MenuItem, event: KeyboardEvent | MouseEvent) => any
 }
 
 /** 注册白板右键菜单时，传入的函数参数 */
@@ -124,7 +133,7 @@ export interface ParamRegisterCanvasMenuItem {
 /**
  * 用更方便的格式配置Obsidian白板右键菜单
  */
-export const registerCanvasMenuItem = ({ on, item }: ParamRegisterCanvasMenuItem) => ({
+export const registerCanvasMenuItem = ({ on, item }: ParamRegisterCanvasMenuItem): ParamEventRegister => ({
 	// 在白板中右键卡片、边或选中多个元素时，添加菜单项
 	on,
 	callback: (menu: Menu, toBeClick: Canvas | CanvasEdge | CanvasNode) => {
@@ -141,7 +150,7 @@ function registerCanvasMenuItem$addMenuItem(menu: Menu, paramItem: ParamRegister
 	} = paramItem;
 	menu.addItem((menuItem: MenuItem) => {
 		// 注册各个属性
-		title && menuItem.setTitle(title);
+		title && menuItem.setTitle(typeof title === "function" ? title(menu) : title);
 		checked && menuItem.setChecked(checked);
 		disabled && menuItem.setDisabled(disabled);
 		icon && menuItem.setIcon(icon);
@@ -149,12 +158,12 @@ function registerCanvasMenuItem$addMenuItem(menu: Menu, paramItem: ParamRegister
 		section && menuItem.setSection(section);
 		// 注册钩子
 		onClick && menuItem.onClick((event: KeyboardEvent | MouseEvent) => {
-			const app = getAppFromCCC(toBeClick);
-			if (!app) {
-				new Notice(`${title}: Can't find the app instance`);
+			const canvas = getCanvasFromCCC(toBeClick);
+			if (!canvas) {
+				new Notice(`${title}: Can't find the canvas instance`);
 				return;
 			}
-			onClick(app, menuItem, event);
+			onClick(canvas, menuItem, event);
 		});
 	});
 }

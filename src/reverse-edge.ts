@@ -1,18 +1,49 @@
 /**
- * 反转白板中选中的边
- *
- * ! 实验性：仅用于个人实验
- * * ❗【2025-04-23 16:51:43】后续可能会独立出一个插件
- */
+ * 反转白板所选连边
+*
+* ! 实验性：仅用于个人实验
+* * ❗【2025-04-23 16:51:43】后续可能会独立出一个插件
+*/
 
-import { App } from "obsidian";
-import { CanvasEdge, CanvasEdgeData } from "obsidian/canvas";
-import { getActiveCanvasView, isCanvasEdge } from "src/utils";
+import { ZH_CN, EN_US } from './i18n';
+import { App, MenuItem } from "obsidian";
+import { Canvas, CanvasEdge, CanvasEdgeData } from "obsidian/canvas";
+import { getActiveCanvasView, isCanvasEdge, ParamEventRegister, registerCanvasMenuItem } from "src/utils";
+import { i18nText } from "./i18n";
+
+
+/**
+ * 注册事件：右键菜单复制选区内容链接
+ * * 🔗参考：<https://forum.obsidian.md/t/creating-an-event-for-menus-on-canvas-items/85646/7>
+ */
+export const EVENT_reverseEdges = registerCanvasMenuItem({
+	// 只有一个边
+	on: ["canvas:edge-menu", "canvas:selection-menu"],
+	item: {
+		title: (_) => i18nText({
+			[EN_US]: "Reverse selected edge(s)",
+			[ZH_CN]: "反转所选连边",
+		}),
+		icon: "repeat", // https://lucide.dev/icons/repeat
+		section: "action",
+		onClick: (canvas: Canvas, _item: MenuItem, _event: KeyboardEvent | MouseEvent) => {
+			// 获取所有选中的连边
+			for (const element of canvas.selection) {
+				if (isCanvasEdge(element))
+					// 反转
+					reverseEdge(element)
+			}
+		}
+	}
+})
 
 /** 对接外部插件 */
 export const CMD_reverseSelectedCanvasEdges = (app: App) => ({
 	id: 'reverse-selected-canvas-edge',
-	name: 'Reverse Selected Canvas Edge',
+	name: i18nText({
+		[EN_US]: 'Reverse Selected Canvas Edge',
+		[ZH_CN]: '反转白板所选连边',
+	}),
 	checkCallback(checking: boolean) {
 		// Conditions to check
 		const result = getActiveCanvasView(app);

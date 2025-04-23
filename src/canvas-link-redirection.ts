@@ -42,7 +42,6 @@ function redirectToElement(canvas: Canvas, elementId: string) {
 	}
 	else console.log(`found element with id=${elementId} in `, canvas, 'element=', element);
 
-
 	// Go to the block
 	canvas.selectOnly(element);
 	canvas.zoomToSelection();

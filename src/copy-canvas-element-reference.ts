@@ -10,34 +10,41 @@
 import { Canvas, CanvasEdge, CanvasElement, CanvasNode } from 'obsidian/canvas';
 import { App, Menu, MenuItem, Notice, TFile } from 'obsidian';
 import { getActiveCanvasView, getAppFromCCC, getCanvasElementTitle, getFileLink, isCanvasNode, ParamEventRegister, registerCanvasMenuItem } from './utils';
+import { EN_US, i18nText, ZH_CN } from './i18n';
 
 /**
- * 注册事件：右键菜单复制选区内容
+ * 注册事件：右键菜单复制选区内容链接
  * * 🔗参考：<https://forum.obsidian.md/t/creating-an-event-for-menus-on-canvas-items/85646/7>
  */
 export const EVENT_copyCanvasCardReferenceMenu: ParamEventRegister = registerCanvasMenuItem({
 	// 在白板中右键卡片、边或选中多个元素时，添加菜单项
 	on: ["canvas:edge-menu", "canvas:node-menu", "canvas:selection-menu"],
 	item: {
-		title: "Copy link(s) of selected items in canvas",
+		title: (_) => i18nText({
+			[EN_US]: "Copy link(s) of selected items",
+			[ZH_CN]: "复制选中元素链接",
+		}),
 		icon: "link",
 		section: "action",
-		onClick: (app: App, _item: MenuItem, _event: KeyboardEvent | MouseEvent) => {
+		onClick: (canvas: Canvas, _item: MenuItem, _event: KeyboardEvent | MouseEvent) => {
 			// Conditions to check
-			const result = getActiveCanvasView(app);
+			const result = getActiveCanvasView(canvas.app);
 			if (!result) return;
 
 			// Copy card reference
-			const { canvas, file } = result
-			copyCanvasCardReference(canvas, file, app);
+			const { file } = result
+			copyCanvasCardReference(canvas, file, canvas.app);
 		}
 	}
 })
 
 /** 对接外部插件 */
-export const CMD_copyCanvasCardReference = (app: App) => ({
-	id: 'copy-canvas-card-reference',
-	name: 'Copy Canvas Card Reference',
+export const CMD_copyCanvasElementReference = (app: App) => ({
+	id: 'copy-canvas-element-reference',
+	name: i18nText({
+		[EN_US]: 'Copy Canvas Element Reference (card/edge)',
+		[ZH_CN]: '复制白板元素引用（节点/连边）',
+	}),
 	checkCallback(checking: boolean) {
 		// Conditions to check
 		const result = getActiveCanvasView(app);
@@ -79,7 +86,10 @@ function copyCanvasCardReference(canvas: Canvas, file: TFile | null, app?: App):
 	// Get the selected node
 	const selection = canvas.selection;
 	if (selection.size === 0) {
-		new Notice("No canvas node/edge selected");
+		new Notice(i18nText({
+			[EN_US]: "No canvas node/edge selected",
+			[ZH_CN]: "未选择任何节点或连边",
+		}));
 		return;
 	}
 
@@ -111,13 +121,19 @@ const MAX_TITLE_PREVIEW_LENGTH = 10
 
 /** 生成通知信息 */
 function generateNoticeOnCopied(elements: Set<CanvasElement>, path: string): string {
-	let text = `${path}: Path${elements.size > 1 ? 's' : ''} of ${elements.size} canvas blocks ${elements.size > 1 ? 'are' : 'is'} copied to clipboard!`
+	let text = i18nText({
+		[EN_US]: `${path}: Path(s) of ${elements.size} canvas element(s) ${elements.size > 1 ? 'are' : 'is'} copied to clipboard!`,
+		[ZH_CN]: `${path}: ${elements.size}个白板元素链接已复制到剪贴板`,
+	})
 	// 节点信息
 	let i = 0
 	for (const element of elements.values()) {
 		// 追加
 		text += `\n${++i}. `
-		text += isCanvasNode(element) ? `Node` : `Link`
+		text += i18nText({
+			[EN_US]: isCanvasNode(element) ? `Node` : `Link`,
+			[ZH_CN]: isCanvasNode(element) ? `节点` : `连边`,
+		})
 		text += ` ^${element.id}`
 		let title = getCanvasElementTitle(element)
 		if (title) {
@@ -126,7 +142,10 @@ function generateNoticeOnCopied(elements: Set<CanvasElement>, path: string): str
 				title = `${title.slice(0, MAX_TITLE_PREVIEW_LENGTH)}...`
 			// 换掉换行符
 			title = title.replace(/\r?\n/g, ' ')
-			text += `\n    with content \"${title}\"`
+			text += `\n    ${i18nText({
+				[EN_US]: "with content ",
+				[ZH_CN]: "内容：",
+			})}\"${title}\"`
 		}
 		if (isCanvasNode(element))
 			text += `\n    @ (${element.x},${element.y})`
