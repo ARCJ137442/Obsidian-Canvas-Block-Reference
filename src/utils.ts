@@ -202,3 +202,29 @@ export function traverseSelectedEdgesIncludesBetweens(canvas: Canvas, f: (e: Can
 		}
 	}
 }
+
+/** 生成通知信息 */
+export function getCanvasTitleOneLine(element: CanvasElement, maxLength: number = 10): string | null {
+	// 获取标题
+	let title = getCanvasElementTitle(element)
+	if (!title) return null
+
+	// 缩减标题
+	if (title.length > maxLength)
+		title = `${title.slice(0, maxLength)}...`
+
+	// 换掉换行符
+	title = title.replace(/\r?\n/g, ' ')
+
+	// 返回
+	return title
+}
+
+/**
+ * Markdown链接转义
+ * * 🎯用于在Markdown链接中引用文本
+ * * 📌【2025-04-23 23:51:08】按照「文件名不能包含的字符 * " \ / < > : | ?」加上「[ ] ( ) # ^」算
+ */
+export function mdLinkEscape(text: string): string {
+	return text.replace(/[\*\"\/<>\:\|\?\[\]\(\)\^\#]/g, '')
+}

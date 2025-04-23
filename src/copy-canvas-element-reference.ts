@@ -7,9 +7,9 @@
  * 📌通知功能`Notice`参考自 <https://github.com/Vinzent03/obsidian-git>
  */
 
-import { Canvas, CanvasEdge, CanvasElement, CanvasNode } from 'obsidian/canvas';
-import { App, Menu, MenuItem, Notice, TFile } from 'obsidian';
-import { getActiveCanvasView, getAppFromCCC, getCanvasElementTitle, getFileLink, isCanvasNode, ParamEventRegister, registerCanvasMenuItem } from './utils';
+import { Canvas, CanvasElement } from 'obsidian/canvas';
+import { App, MenuItem, Notice, TFile } from 'obsidian';
+import { getActiveCanvasView, getCanvasTitleOneLine, getFileLink, isCanvasNode, mdLinkEscape, ParamEventRegister, registerCanvasMenuItem } from './utils';
 import { EN_US, i18nText, ZH_CN } from './i18n';
 
 /**
@@ -95,9 +95,15 @@ function copyCanvasCardReference(canvas: Canvas, file: TFile | null, app?: App):
 
 	// Get the first node
 	let text = "";
-	for (const node of selection.values())
+	for (const node of selection.values()) {
 		// 支持多个节点
-		text += "\n" + generateLinkFromCanvasNode(path, node);
+		const title = getCanvasTitleOneLine(node, MAX_TITLE_PREVIEW_LENGTH)
+		text += "\n" + generateLinkFromCanvasNode(
+			path, node,
+			// 若无⇒不填充标题，若有⇒转义&裁切
+			title ? mdLinkEscape(title).trim() : undefined
+		);
+	}
 
 	// Copy to clipboard
 	copyToClipboard(text.slice(1)); // 移除开头的换行符
@@ -107,8 +113,8 @@ function copyCanvasCardReference(canvas: Canvas, file: TFile | null, app?: App):
 }
 
 /** 生成文件路径链接 */
-const generateLinkFromCanvasNode = (path: string, element: CanvasElement) => (
-	`[[${path}#^${element.id}]]`
+const generateLinkFromCanvasNode = (path: string, element: CanvasElement, title?: string) => (
+	title ? `[[${path}#^${element.id}|${title}]]` : `[[${path}#^${element.id}]]`
 )
 
 /** 🎯封装逻辑，以便日后更改 */
@@ -135,13 +141,8 @@ function generateNoticeOnCopied(elements: Set<CanvasElement>, path: string): str
 			[ZH_CN]: isCanvasNode(element) ? `节点` : `连边`,
 		})
 		text += ` ^${element.id}`
-		let title = getCanvasElementTitle(element)
+		let title = getCanvasTitleOneLine(element, MAX_TITLE_PREVIEW_LENGTH)
 		if (title) {
-			// 缩减标题
-			if (title.length > MAX_TITLE_PREVIEW_LENGTH)
-				title = `${title.slice(0, MAX_TITLE_PREVIEW_LENGTH)}...`
-			// 换掉换行符
-			title = title.replace(/\r?\n/g, ' ')
 			text += `\n    ${i18nText({
 				[EN_US]: "with content ",
 				[ZH_CN]: "内容：",
