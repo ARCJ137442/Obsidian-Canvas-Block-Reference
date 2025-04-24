@@ -1,3 +1,8 @@
+/**
+ * 实用工具函数集
+ */
+import { promisify } from 'util';
+import { exec } from 'child_process';
 import { MenuItem, App, FileView, ItemView, TFile, Menu, Notice } from "obsidian";
 import { Canvas, CanvasEdge, CanvasElement, CanvasNode, CanvasView } from "obsidian/canvas";
 
@@ -5,6 +10,13 @@ import { Canvas, CanvasEdge, CanvasElement, CanvasNode, CanvasView } from "obsid
 export type ParamEventRegister = {
 	on: string | string[],
 	callback: Function
+}
+
+/** 执行命令 */
+export async function runCmd(cmd: string) {
+	const execAsync = promisify(exec);
+	const result = await execAsync(cmd);
+	return { out: result.stdout.trim(), err: result.stderr.trim() };
 }
 
 /**

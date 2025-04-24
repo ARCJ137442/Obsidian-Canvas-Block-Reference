@@ -8,7 +8,7 @@
 import { ZH_CN, EN_US } from './i18n';
 import { App, MenuItem } from "obsidian";
 import { Canvas, CanvasEdge, CanvasEdgeData } from "obsidian/canvas";
-import { getActiveCanvasView, isCanvasEdge, isCanvasNode, ParamEventRegister, registerCanvasMenuItem, traverseSelectedEdgesIncludesBetweens } from "src/utils";
+import { getActiveCanvasView, isCanvasEdge, isCanvasNode, ParamEventRegister, registerCanvasMenuItem, runCmd, traverseSelectedEdgesIncludesBetweens } from "src/utils";
 import { i18nText } from "./i18n";
 
 
@@ -70,6 +70,16 @@ export const CMD_reverseSelectedCanvasEdges = (app: App) => ({
 
 		// This command will only show up in Command Palette when the check function returns true
 		return true;
+	}
+})
+
+/** 对接外部插件 */
+export const CMD_test = (app: App) => ({
+	id: 'canvas-test',
+	name: '测试',
+	checkCallback(checking: boolean) {
+		if (checking) return;
+		runCmd(`[exe路径] [文件路径]`)
 	}
 })
 
