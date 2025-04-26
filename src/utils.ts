@@ -185,11 +185,11 @@ export function getFileLink(app: App, file: TFile): string {
  * 遍历所有选中的连边，包括间接选中的边（即：从选中的节点出发、目标节点同时也被选中的边）
  * * 📌若遍历过程涉及对节点边的操作（如转向），则仍有可能重复遍历
  */
-export function traverseSelectedEdgesIncludesBetweens(canvas: Canvas, f: (e: CanvasEdge) => any) {
+export function* selectedEdgesIncludesBetweens(canvas: Canvas): Generator<CanvasEdge> {
 	// 遍历所有直接选中的连边
 	for (const element of canvas.selection) {
 		if (isCanvasEdge(element))
-			f(element)
+			yield element
 		// 节点：判断从其发出的边所接触的目标节点是否也被选中
 		else if (isCanvasNode(element)) {
 			// * 🚩从选中的节点中跟踪连边：遍历所有节点【发出】的连边，保证不会重复遍历
@@ -197,7 +197,7 @@ export function traverseSelectedEdgesIncludesBetweens(canvas: Canvas, f: (e: Can
 				// 只获得发出的边——一个边只可能从一个节点发出，避免重复
 				if (edge.from.node !== element) continue
 				// 若目标节点也被选中，则处理
-				if (canvas.selection.has(edge.to.node)) f(edge)
+				if (canvas.selection.has(edge.to.node)) yield edge
 			}
 		}
 	}
@@ -227,4 +227,35 @@ export function getCanvasTitleOneLine(element: CanvasElement, maxLength: number 
  */
 export function mdLinkEscape(text: string): string {
 	return text.replace(/[\*\"\/<>\:\|\?\[\]\(\)\^\#]/g, '')
+}
+
+/**
+ * 过滤重复数据
+ */
+export function* filterRepeatedDatasByKey<D, K extends string>(datas: Generator<D>, getKey: (data: D) => K): Generator<D> {
+	const selected: { [k: string]: boolean } = {}
+	for (const data of datas) {
+		// 已标记的边不再处理
+		const key = getKey(data)
+		if (key in selected) continue
+		selected[key] = true
+		yield data
+	}
+}
+
+/**
+ * 先过滤重复数据，再遍历
+ */
+export function* filteredDatasByKey<D, K extends string>(datas: Generator<D>, getKey: (data: D) => K): Generator<D> {
+	// 标记过滤选择的边
+	const selected: { [key: string]: D } = {}
+	for (const data of datas) {
+		// 已标记的边不再处理
+		const key = getKey(data);
+		if (key in selected) continue
+		selected[key] = data
+	}
+	// 遍历选择的边
+	for (const data of Object.values(selected))
+		yield data
 }

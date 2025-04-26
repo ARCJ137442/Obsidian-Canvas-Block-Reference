@@ -8,7 +8,7 @@
 import { ZH_CN, EN_US } from './i18n';
 import { App, MenuItem, Modal, Notice, Setting, TextComponent } from "obsidian";
 import { Canvas, CanvasEdge, CanvasEdgeData, CanvasElement, CanvasElementData } from "obsidian/canvas";
-import { getActiveCanvasView, isCanvasEdge, isCanvasNode, registerCanvasMenuItem, traverseSelectedEdgesIncludesBetweens } from "src/utils";
+import { getActiveCanvasView, isCanvasEdge, isCanvasNode, registerCanvasMenuItem } from "src/utils";
 import { i18nText } from "./i18n";
 
 /**
