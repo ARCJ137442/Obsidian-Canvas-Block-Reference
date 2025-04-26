@@ -75,7 +75,6 @@ export const CMD_reverseSelectedCanvasEdges = (app: App) => ({
 
 /** 反转一个边对象 */
 export function reverseEdge(e: CanvasEdge): void {
-	console.log("reverseEdge", e)
 	// 获取一个data对象（与e引用解绑）
 	const data = e.getData();
 	// 反转之
