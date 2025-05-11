@@ -6,8 +6,8 @@
 
 import { App, Editor, EditorPosition, EditorSuggest, EditorSuggestContext, EditorSuggestTriggerInfo, ItemView, MetadataCache, OpenViewState, Plugin, prepareFuzzySearch, TFile, ViewState, WorkspaceLeaf } from 'obsidian';
 import { BlockLinkInfo, BuiltInSuggest, BuiltInSuggestItem } from './typings/suggest';
+import { CanvasNode } from 'obsidian/canvas';
 import { getCanvasElementTitle, getFileLink } from './utils';
-import { JSONCanvas, GenericNode } from "@trbn/jsoncanvas"
 
 // /**
 //  * 实际的「文件输入建议」功能
@@ -74,7 +74,7 @@ function tryGetLinkMode(query: string): 'heading' | 'block' | null {
 
 async function tryGetCanvasNodes(app: App, context: EditorSuggestContext): Promise<{
 	query: string,
-	nodes: GenericNode[],
+	nodes: CanvasNode[],
 	path: string,
 	canvasFile: TFile,
 } | null> {
@@ -82,7 +82,7 @@ async function tryGetCanvasNodes(app: App, context: EditorSuggestContext): Promi
 	// * ✅有context.query
 
 	const { query, file } = context;
-	const isSuggestForCanvas = query.contains(CANVAS_EXTENSION);
+	const isSuggestForCanvas = query.contains(CANVAS_EXTENSION)
 
 	if (!isSuggestForCanvas) return null;
 	// Get current canvas path from query string
@@ -106,14 +106,14 @@ async function tryGetCanvasNodes(app: App, context: EditorSuggestContext): Promi
 async function getNodesFromCanvas(app: App, canvasFile: TFile) {
 	// Convert json string to object
 	const canvasFileContent = await app.vault.cachedRead(canvasFile);
-	const canvasFileData = JSONCanvas.fromString(canvasFileContent)
+	const canvasFileData = JSON.parse(canvasFileContent);
 
 	// return the nodes as object
-	return canvasFileData.getNodes();
+	return canvasFileData.nodes;
 }
 
 /** 根据白板数据生成相关建议 */
-function generateSuggestions(context: EditorSuggestContext, query: string, nodes: GenericNode[], app: App, file: TFile) {
+function generateSuggestions(context: EditorSuggestContext, query: string, nodes: CanvasNode[], app: App, file: TFile) {
 	// 链接的格式：标题还是块，还是没有
 	const mode = tryGetLinkMode(query);
 	if (mode === null) return null;
@@ -137,22 +137,22 @@ function generateSuggestions(context: EditorSuggestContext, query: string, nodes
 
 	// 原先要根据不同「模式」过滤，现在只需过滤「文本节点」
 	// * 💡或许后续还能根据「首行是否为标题」来过滤？
-	let nodePredicate: (node: GenericNode) => boolean;
+	let nodePredicate;
 	// 针对纯文本节点 text
-	const hasText = (node: GenericNode) => 'text' in node;
+	const hasText = (node: CanvasNode) => 'text' in node;
 	// 针对纯文本节点 group
-	const hasLabel = (node: GenericNode) => 'label' in node;
+	const hasLabel = (node: CanvasNode) => 'label' in node;
 	switch (mode) {
 		case "heading":
-			nodePredicate = (node: GenericNode) => hasText(node);
+			nodePredicate = (node: CanvasNode) => hasText(node);
 			break;
 		case "block":
-			nodePredicate = (node: GenericNode) => hasText(node) || hasLabel(node);
+			nodePredicate = (node: CanvasNode) => hasText(node) || hasLabel(node);
 			break;
 		default:
-			nodePredicate = (_: GenericNode) => true;
+			nodePredicate = (_: CanvasNode) => true;
 	}
-	const textNodes: GenericNode[] = nodes.filter(nodePredicate);
+	const textNodes: CanvasNode[] = nodes.filter(nodePredicate);
 
 	// console.log(
 	// 	'mode:', mode,
