@@ -1,5 +1,6 @@
 import { MenuItem, App, FileView, ItemView, TFile, Menu, Notice } from "obsidian";
 import { Canvas, CanvasEdge, CanvasElement, CanvasNode, CanvasView } from "obsidian/canvas";
+import { GenericNode } from "@trbn/jsoncanvas"
 
 /** 用于注册事件的参数类型 */
 export type ParamEventRegister = {
@@ -26,7 +27,7 @@ export function isCanvasEdge(element: CanvasElement): element is CanvasEdge {
 /**
  * 功能：获得白板元素的展示文本
  */
-export function getCanvasElementTitle(_element: CanvasElement): string | null {
+export function getCanvasElementTitle(_element: GenericNode): string | null {
 	let element: any = _element // 骗过类型检查器
 	return (
 		// 文本节点 text
