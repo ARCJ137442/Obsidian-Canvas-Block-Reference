@@ -6,12 +6,18 @@ import { BuiltInSuggest } from './typings/suggest';
 import { suggestAround } from './canvas-link-suggest';
 import { CMD_reverseSelectedCanvasEdges, CMD_test, EVENT_reverseEdges } from './reverse-edge';
 import { CMD_changeElementID, EVENT_changeElementID } from './change-element-id';
+import { DEFAULT_SETTINGS, PluginSettings, CanvasBlockReferenceSettings } from './settings';
 // import { CMD_selectAllEdgesInCanvas } from './commands/select-all-edges';
 // ! ✅「选择所有连边」的功能，在AdvancedCanvas中有了
 
 export default class CanvasReferencePlugin extends Plugin {
+	settings!: PluginSettings;
 
 	async onload(): Promise<void> {
+		// 注册配置
+		await this.loadSettings();
+		this.addSettingTab(new CanvasBlockReferenceSettings(this.app, this));
+
 		// 功能：链接寻路
 		this.patchWorkspaceLeaf();
 
@@ -95,6 +101,15 @@ export default class CanvasReferencePlugin extends Plugin {
 		const app = this.app;
 
 		this.register(around(suggest.constructor.prototype, suggestAround(suggest, app)));
+	}
+
+	async loadSettings() {
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+	}
+
+	async saveSettings() {
+		await this.saveData(this.settings);
+		this.app.workspace.updateOptions();
 	}
 }
 
