@@ -6,7 +6,7 @@ import { BuiltInSuggest } from './typings/suggest';
 import { suggestAround } from './canvas-link-suggest';
 import { CMD_reverseSelectedCanvasEdges, EVENT_reverseEdges } from './reverse-edge';
 import { CMD_changeElementID, EVENT_changeElementID } from './change-element-id';
-import { CMD_adjustEdgeOnside, EVENT_adjustEdgeOnside } from './adjust-edge-onside';
+import { CMD_selectDownstreamNodes, EVENT_selectDownstreamNodesMenu } from './select-nodes-via-edges';
 // import { CMD_selectAllEdgesInCanvas } from './commands/select-all-edges';
 // ! ✅「选择所有连边」的功能，在AdvancedCanvas中有了
 
@@ -36,7 +36,7 @@ export default class CanvasReferencePlugin extends Plugin {
 			EVENT_copyCanvasCardReferenceMenu,
 			EVENT_reverseEdges,
 			EVENT_changeElementID,
-			EVENT_adjustEdgeOnside,
+			EVENT_selectDownstreamNodesMenu,
 		]
 		// 注册事件
 		for (const { on, callback } of EVENTS)
@@ -55,7 +55,7 @@ export default class CanvasReferencePlugin extends Plugin {
 			CMD_copyCanvasElementReference,
 			CMD_reverseSelectedCanvasEdges,
 			CMD_changeElementID,
-			CMD_adjustEdgeOnside,
+			CMD_selectDownstreamNodes,
 		]
 		// 添加命令
 		for (const cmdF of COMMANDS)
