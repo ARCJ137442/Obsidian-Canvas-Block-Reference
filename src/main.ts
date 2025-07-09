@@ -28,12 +28,12 @@ export default class CanvasReferencePlugin extends Plugin {
 		// 功能：注册事件
 		this.registerEvents();
 
-		// 📌【2025-07-10 00:34:00】快速添加：空格+节点 开始编辑（连边作用无效），esc 取消编辑
+		// 📌【2025-07-10 00:34:00】快速添加键盘功能
 		this.registerDomEvent(this.app.workspace.containerEl, "keydown", (e: KeyboardEvent) => {
 			// @ts-ignore
 			const canvas: Canvas = this.app.workspace.getActiveViewOfType(ItemView)?.canvas as (Canvas | undefined)
 			if (!canvas) return;
-			// 空格 开始编辑
+			// 空格+节点 开始编辑（连边作用无效）
 			if (e.key === ' ') {
 				const firstElement = canvas.selection.values()?.next()?.value
 				if (!firstElement) return;
@@ -45,9 +45,22 @@ export default class CanvasReferencePlugin extends Plugin {
 					// 	firstElement.setLabel()
 				}
 			}
+			// esc 取消编辑，【2025-07-10 01:24:03】当前无效
 			if (e.key === 'Escape') {
 				if (canvas.selection.size > 0) {
 					canvas.deselectAll()
+				}
+			}
+			if (e.key === 'c') {
+				const MAX_COLOR_LENGTH = 7
+				for (const element of canvas.selection.values()) {
+					if (isCanvasEdge(element) || isCanvasNode(element)) {
+						const color = Number(element.color)
+						if (isFinite(color)) {
+							const newColor = (color + 1) % MAX_COLOR_LENGTH
+							element.setColor(newColor.toString())
+						}
+					}
 				}
 			}
 		})
