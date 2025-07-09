@@ -29,7 +29,7 @@ export default class CanvasReferencePlugin extends Plugin {
 		this.registerEvents();
 
 		// 📌【2025-07-10 00:34:00】快速添加键盘功能
-		this.registerDomEvent(this.app.workspace.containerEl, "keydown", (e: KeyboardEvent) => {
+		this.registerDomEvent(document, "keydown", (e: KeyboardEvent) => {
 			// @ts-ignore
 			const canvas: Canvas = this.app.workspace.getActiveViewOfType(ItemView)?.canvas as (Canvas | undefined)
 			if (!canvas) return;
@@ -45,8 +45,9 @@ export default class CanvasReferencePlugin extends Plugin {
 					// 	firstElement.setLabel()
 				}
 			}
-			// esc 取消编辑，【2025-07-10 01:24:03】当前无效
-			if (e.key === 'Escape') {
+			// q 取消编辑与选中
+			if (e.key === 'q' || e.key === 'Escape') {
+				// ✅【2025-07-10 01:39:41】在结束文本编辑后，可取消编辑
 				if (canvas.selection.size > 0) {
 					canvas.deselectAll()
 				}
