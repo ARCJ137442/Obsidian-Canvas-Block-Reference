@@ -51,13 +51,15 @@ export default class CanvasReferencePlugin extends Plugin {
 					canvas.deselectAll()
 				}
 			}
-			if (e.key === 'c') {
+			// c 调整颜色（shift反向）
+			if (e.code === 'KeyC') {
 				const MAX_COLOR_LENGTH = 7
 				for (const element of canvas.selection.values()) {
 					if (isCanvasEdge(element) || isCanvasNode(element)) {
 						const color = Number(element.color)
+						const step = e.shiftKey ? MAX_COLOR_LENGTH - 1 : 1
 						if (isFinite(color)) {
-							const newColor = (color + 1) % MAX_COLOR_LENGTH
+							const newColor = (color + step) % MAX_COLOR_LENGTH
 							element.setColor(newColor.toString())
 						}
 					}
