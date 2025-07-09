@@ -27,23 +27,31 @@ export default class CanvasReferencePlugin extends Plugin {
 		// 功能：注册事件
 		this.registerEvents();
 
-		// 📌【2025-07-10 00:34:00】快速添加：空格+节点 开始编辑（连边作用无效）
+		// 📌【2025-07-10 00:34:00】快速添加：空格+节点 开始编辑（连边作用无效），esc 取消编辑
 		this.registerDomEvent(this.app.workspace.containerEl, "keydown", (e: KeyboardEvent) => {
 			// @ts-ignore
 			const canvas: Canvas = this.app.workspace.getActiveViewOfType(ItemView)?.canvas as (Canvas | undefined)
 			if (!canvas) return;
-			if (e.key !== ' ') return;
-			const firstElement = canvas.selection.values()?.next()?.value
-			if (!firstElement) return;
-			const isEditing = firstElement?.isEditing
-			if (!isEditing) {
-				if (isCanvasNode(firstElement))
-					firstElement.startEditing()
-				else if (isCanvasEdge(firstElement))
-					firstElement.setLabel()
+			// 空格 开始编辑
+			if (e.key === ' ') {
+				const firstElement = canvas.selection.values()?.next()?.value
+				if (!firstElement) return;
+				const isEditing = firstElement?.isEditing
+				if (!isEditing) {
+					if (isCanvasNode(firstElement))
+						firstElement.startEditing()
+					// else if (isCanvasEdge(firstElement))
+					// 	firstElement.setLabel()
+				}
+			}
+			if (e.key === 'Escape') {
+				if (canvas.selection.size > 0) {
+					canvas.deselectAll()
+				}
 			}
 		})
 	}
+
 
 	onunload(): void {
 
