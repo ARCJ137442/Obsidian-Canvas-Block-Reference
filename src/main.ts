@@ -45,6 +45,10 @@ export default class CanvasReferencePlugin extends Plugin {
 					// 	firstElement.setLabel()
 				}
 			}
+			// x 删除选区
+			if (e.key === 'x' && canvas.selection.size > 0) {
+				canvas.deleteSelection()
+			}
 			// q 取消编辑与选中
 			if (e.key === 'q' || e.key === 'Escape') {
 				// ✅【2025-07-10 01:39:41】在结束文本编辑后，可取消编辑
