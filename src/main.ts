@@ -34,7 +34,7 @@ export default class CanvasReferencePlugin extends Plugin {
 			const canvas: Canvas = this.app.workspace.getActiveViewOfType(ItemView)?.canvas as (Canvas | undefined)
 			if (!canvas) return;
 			// 空格+节点 开始编辑（连边作用无效）
-			if (e.key === ' ') {
+			if (e.key === ' ' || e.key === 'Enter') {
 				const firstElement = canvas.selection.values()?.next()?.value
 				if (!firstElement) return;
 				const isEditing = firstElement?.isEditing
