@@ -9,7 +9,7 @@ import { CMD_changeElementID, EVENT_changeElementID } from './change-element-id'
 import { CMD_selectDownstreamNodes, EVENT_selectDownstreamNodesMenu, CMD_selectUpstreamNodes, EVENT_selectUpstreamNodesMenu } from './select-nodes-via-edges';
 import { Canvas } from 'obsidian/canvas';
 import { isCanvasEdge, isCanvasNode } from './utils';
-import { CMD_adjustEdgeOnside, EVENT_adjustEdgeOnside } from './adjust-edge-onside';
+import { CMD_adjustEdgeOnside, CMD_toggleNodeEdgeSelect, EVENT_adjustEdgeOnside, EVENT_toggleNodeEdgeSelect } from './adjust-edge-onside';
 // import { CMD_selectAllEdgesInCanvas } from './commands/select-all-edges';
 // ! ✅「选择所有连边」的功能，在AdvancedCanvas中有了
 
@@ -87,6 +87,7 @@ export default class CanvasReferencePlugin extends Plugin {
 			EVENT_selectDownstreamNodesMenu,
 			EVENT_selectUpstreamNodesMenu,
 			EVENT_adjustEdgeOnside,
+			EVENT_toggleNodeEdgeSelect,
 		]
 		// 注册事件
 		for (const { on, callback } of EVENTS)
@@ -108,6 +109,7 @@ export default class CanvasReferencePlugin extends Plugin {
 			CMD_selectDownstreamNodes,
 			CMD_adjustEdgeOnside,
 			CMD_selectUpstreamNodes,
+			CMD_toggleNodeEdgeSelect,
 		]
 		// 添加命令
 		for (const cmdF of COMMANDS)

@@ -203,6 +203,62 @@ export function* selectedEdgesIncludesBetweens(canvas: Canvas): Generator<Canvas
 	}
 }
 
+/**
+ * 获取所有选中连边
+ */
+export function* selectedEdges(canvas: Canvas): Generator<CanvasEdge> {
+	for (const element of canvas.selection) {
+		if (isCanvasEdge(element)) {
+			yield element;
+		}
+	}
+}
+
+/**
+ * 获取所有选中节点
+ */
+export function* selectedNodes(canvas: Canvas): Generator<CanvasNode> {
+	for (const element of canvas.selection) {
+		if (isCanvasNode(element)) {
+			yield element;
+		}
+	}
+}
+
+/**
+ * 从边集合获取所有关联节点
+ */
+export function* getNodesAroundEdges(edges: Iterable<CanvasEdge>): Generator<CanvasNode> {
+	const seen = new Set<string>();
+	for (const edge of edges) {
+		const fromNode = edge.from.node;
+		const toNode = edge.to.node;
+		if (fromNode && !seen.has(fromNode.id)) {
+			seen.add(fromNode.id);
+			yield fromNode;
+		}
+		if (toNode && !seen.has(toNode.id)) {
+			seen.add(toNode.id);
+			yield toNode;
+		}
+	}
+}
+
+/**
+ * 获取完全在节点集合内的边
+ */
+export function* getEdgesBetweenNodes(canvas: Canvas, nodes: Set<CanvasNode>): Generator<CanvasEdge> {
+	for (const node of nodes) {
+		// * 🚩从集合内跟踪连边：遍历所有节点【发出】的连边，保证不会重复遍历
+		for (const edge of canvas.getEdgesForNode(node)) {
+			// 只获得发出的边——一个边只可能从一个节点发出，避免重复
+			if (edge.from.node !== node) continue
+			// 若目标节点也在其中，则处理
+			if (nodes.has(edge.to.node)) yield edge
+		}
+	}
+}
+
 /** 生成通知信息 */
 export function getCanvasTitleOneLine(element: CanvasElement, maxLength: number = 10): string | null {
 	// 获取标题

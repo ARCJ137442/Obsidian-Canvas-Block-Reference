@@ -8,13 +8,19 @@
 import { ZH_CN, EN_US } from './i18n';
 import { App, MenuItem } from "obsidian";
 import { BoundedBox, Canvas, CanvasEdge, CanvasEdgeData, NodeSide } from "obsidian/canvas";
-import { filteredDatasByKey, getActiveCanvasView, registerCanvasMenuItem, selectedEdgesIncludesBetweens } from "src/utils";
+import { filteredDatasByKey, getActiveCanvasView, getEdgesBetweenNodes, getNodesAroundEdges, registerCanvasMenuItem, selectedEdges, selectedEdgesIncludesBetweens, selectedNodes } from "src/utils";
 import { i18nText } from "./i18n";
 
 /** 统一的功能名称（命令/右键菜单） */
 const NAME_DICT = {
 	[EN_US]: "Adjust the connection position of the selected edge(s)",
 	[ZH_CN]: "调整所选连边的连接位置",
+}
+
+/** 切换 节点/连边 选择 功能名称 */
+const TOGGLE_NODE_EDGE_SELECT = {
+	[EN_US]: "Toggle node/edge selection",
+	[ZH_CN]: "切换节点/连边选择",
 }
 
 /**
@@ -32,6 +38,16 @@ export const EVENT_adjustEdgeOnside = registerCanvasMenuItem({
 			/** 标记哪些边被转换过 */
 			adjustSelectedEdgesOnside(canvas)
 		}
+	}
+})
+
+export const EVENT_toggleNodeEdgeSelect = registerCanvasMenuItem({
+	on: ["canvas:selection-menu"],
+	item: {
+		title: (_) => i18nText(TOGGLE_NODE_EDGE_SELECT),
+		icon: "square-dashed-mouse-pointer",
+		section: "action",
+		onClick: toggleNodeEdgeSelect,
 	}
 })
 
@@ -58,6 +74,37 @@ export const CMD_adjustEdgeOnside = (app: App) => ({
 		return true;
 	}
 })
+
+export const CMD_toggleNodeEdgeSelect = (app: App) => ({
+	id: 'toggle-node-edge-select',
+	name: i18nText(TOGGLE_NODE_EDGE_SELECT),
+	checkCallback(checking: boolean) {
+		const result = getActiveCanvasView(app);
+		if (!result) return;
+		const { canvas } = result;
+
+		if (checking) return canvas.selection.size > 0;
+
+		toggleNodeEdgeSelect(canvas)
+		return true;
+	}
+})
+
+export function toggleNodeEdgeSelect(canvas: Canvas): void {
+	// 缓存所有选中的节点、连边
+	const nodesSelected = new Set(selectedNodes(canvas));
+	const edgesSelected = new Set(selectedEdges(canvas));
+
+	canvas.deselectAll();
+
+	// 选中相应节点、连边
+	for (const node of getNodesAroundEdges(edgesSelected)) {
+		canvas.select(node)
+	}
+	for (const edge of getEdgesBetweenNodes(canvas, nodesSelected)) {
+		canvas.select(edge);
+	}
+}
 
 export function adjustSelectedEdgesOnside(canvas: Canvas): void {
 	for (const e of filteredDatasByKey(selectedEdgesIncludesBetweens(canvas), e => e.id))
