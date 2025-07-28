@@ -34,7 +34,7 @@ export default class CanvasReferencePlugin extends Plugin {
 			const canvas: Canvas = this.app.workspace.getActiveViewOfType(ItemView)?.canvas as (Canvas | undefined)
 			if (!canvas) return;
 			// 空格+节点 开始编辑（连边作用无效）
-			if (e.key === ' ' || e.key === 'Enter') {
+			if ([' ', 'Enter'].includes(e.key) && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
 				const firstElement = canvas.selection.values()?.next()?.value
 				if (!firstElement) return;
 				const isEditing = firstElement?.isEditing
@@ -46,20 +46,23 @@ export default class CanvasReferencePlugin extends Plugin {
 				}
 			}
 			// x 删除选区
-			if (e.key === 'x' && canvas.selection.size > 0) {
+			if (e.key === 'x' && canvas.selection.size > 0 && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
 				canvas.deleteSelection()
 			}
-			// q 取消编辑与选中
-			if (e.key === 'q' || e.key === 'Escape') {
+			// q/Esc 取消编辑与选中
+			if (['q', 'Escape'].includes(e.key) && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
 				// ✅【2025-07-10 01:39:41】在结束文本编辑后，可取消编辑
 				if (canvas.selection.size > 0) {
 					canvas.deselectAll()
 				}
 			}
 			// c 调整颜色（shift反向）
-			if (e.code === 'KeyC') {
+			if (e.code === 'KeyC' && !e.ctrlKey && !e.altKey && !e.metaKey) {
 				const MAX_COLOR_LENGTH = 7
 				for (const element of canvas.selection.values()) {
+					// 正在编辑的元素不修改颜色
+					if (isCanvasNode(element) && element.isEditing) continue
+					// 其它情况
 					if (isCanvasEdge(element) || isCanvasNode(element)) {
 						const color = Number(element.color)
 						const step = e.shiftKey ? MAX_COLOR_LENGTH - 1 : 1
