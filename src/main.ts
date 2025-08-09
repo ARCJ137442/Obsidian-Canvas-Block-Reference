@@ -7,8 +7,8 @@ import { suggestAround } from './canvas-link-suggest';
 import { CMD_reverseSelectedCanvasEdges, EVENT_reverseEdges } from './reverse-edge';
 import { CMD_changeElementID, EVENT_changeElementID } from './change-element-id';
 import { CMD_selectDownstreamNodes, EVENT_selectDownstreamNodesMenu, CMD_selectUpstreamNodes, EVENT_selectUpstreamNodesMenu } from './select-nodes-via-edges';
-import { BoundedBox, Canvas, CanvasNode } from 'obsidian/canvas';
-import { isCanvasEdge, isCanvasNode, selectedNodes } from './utils';
+import { BoundedBox, Canvas, CanvasElementSide, CanvasNode } from 'obsidian/canvas';
+import { addEdge, isCanvasEdge, isCanvasNode, panToElements, selectedNodes } from './utils';
 import { CMD_adjustEdgeOnside, CMD_toggleNodeEdgeSelect, EVENT_adjustEdgeOnside, EVENT_toggleNodeEdgeSelect } from './adjust-edge-onside';
 // import { CMD_selectAllEdgesInCanvas } from './commands/select-all-edges';
 // ! ✅「选择所有连边」的功能，在AdvancedCanvas中有了
@@ -30,12 +30,19 @@ export default class CanvasReferencePlugin extends Plugin {
 
 		// 📌【2025-07-10 00:34:00】快速添加键盘功能
 		this.registerDomEvent(document, "keydown", async (e: KeyboardEvent) => {
+			this.isKeyDown[e.code] = true
 			// @ts-ignore
 			const canvas: Canvas = this.app.workspace.getActiveViewOfType(ItemView)?.canvas as (Canvas | undefined)
 			if (!canvas) return;
 			await this.onCanvasKeyDown(e, canvas)
 		})
+		// 📌【2025-07-10 00:34:00】快速添加键盘功能
+		this.registerDomEvent(document, "keyup", async (e: KeyboardEvent) => {
+			this.isKeyDown[e.code] = false
+		})
 	}
+
+	isKeyDown: { [code: string]: boolean } = {}
 
 	// 独立出的功能：白板中键盘按下的功能
 	async onCanvasKeyDown(e: KeyboardEvent, canvas: Canvas) {
@@ -51,7 +58,7 @@ export default class CanvasReferencePlugin extends Plugin {
 			const isEditing = firstElement?.isEditing
 			if (!isEditing) {
 				if (isCanvasNode(firstElement))
-					firstElement.startEditing()
+					setTimeout(() => firstElement.startEditing(), 0)
 				// else if (isCanvasEdge(firstElement))
 				// 	firstElement.setLabel()
 			}
@@ -86,6 +93,147 @@ export default class CanvasReferencePlugin extends Plugin {
 		}
 		// 选中+WASD：在节点之间移动选择
 		while (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(code) && !ctrlKey && !altKey && !metaKey) {
+			// E「Expand」：组合键+WASD 创建一个文本节点，并进行延展
+			if (this.isKeyDown['KeyE']) {
+				const newNodes = []
+
+				const node: CanvasNode = canvas.selection.values().next().value // ! 📌【2025-08-09 14:40:23】还是只选中一个
+				if (!node) break
+
+				const selected = [...selectedNodes(canvas)]
+				for (const node of selected) {
+					// 目前仅针对文本节点
+					if (!('text' in node)) continue
+
+					// 计算要偏移的位置、要连接的两侧
+					let dx, dy
+					let fromSide: CanvasElementSide, toSide: CanvasElementSide
+					const padding = 20
+					switch (code) {
+						case 'KeyW': // 向上：出现在上方，dy上一个height
+							dx = 0
+							dy = -node.height - padding
+							fromSide = 'top', toSide = 'bottom' // 从顶面连到底面
+							break
+						case 'KeyS': // 向下：出现在下方，dy下一个height
+							dx = 0
+							dy = node.height + padding
+							fromSide = 'bottom', toSide = 'top' // 从底面连到顶面
+							break
+						case 'KeyA': // 向左：出现在左侧，dx左一个width
+							dx = -node.width - padding
+							dy = 0
+							fromSide = 'left', toSide = 'right' // 从左侧连到右侧
+							break
+						case 'KeyD': // 向右：出现在右侧，dx右一个width
+							dx = node.width + padding
+							dy = 0
+							fromSide = 'right', toSide = 'left' // 从右侧连到左侧
+							break
+						default:
+							dx = dy = 0
+							fromSide = toSide = 'right'
+							break
+					}
+
+					// 仿制一个文本节点
+					const newNode = canvas.createTextNode({
+						pos: { x: node.x + dx, y: node.y + dy },
+						save: true, focus: false,
+						size: { width: node.width, height: node.height },
+						text: (node as any)?.text ?? ''
+					})
+					// * ℹ️需要更新碰撞箱：刚创建的节点没有
+					newNode.bbox = { minX: newNode.x, minY: newNode.y, maxX: newNode.x + newNode.width, maxY: newNode.y + newNode.height }
+
+					canvas.addNode(newNode)
+					canvas.requestSave()
+
+					newNode.color = node.color
+					// newNode.setData({ // ! ⚠️【2025-08-09 14:53:19】必须放在addNode后边，不然没有id，也会表现得像是「不在白板中」
+					// 	...node.getData(),
+					// 	// 除了id、x、y、width、height、text的字段
+					// 	x: newNode.x,
+					// 	y: newNode.y,
+					// 	width: newNode.width,
+					// 	height: newNode.height,
+					// 	id: newNode.id,
+					// 	text: (newNode as any).text
+					// })
+
+					if (!newNode) continue
+
+					// 添加连边
+					addEdge(canvas, node, newNode, fromSide, toSide, false)
+
+					newNodes.push(newNode)
+				}
+				// 选中所有新增的节点
+				if (newNodes.length <= 0) break
+
+				if (!shiftKey) canvas.deselectAll() // shift可以扩增选择
+				for (const newNode of newNodes) canvas.select(newNode)
+
+				canvas.requestFrame()
+
+				// 跟随选中：将画布平移到所有选中的节点处
+				panToElements(canvas, newNodes)
+
+				break
+			}
+			// R「Resize」：调整选中节点的大小
+			if (this.isKeyDown['KeyR']) {
+				const node: CanvasNode = selectedNodes(canvas).next().value // ! 📌【2025-08-09 14:40:23】还是只选中一个
+				if (!node) break
+
+				for (const node of selectedNodes(canvas)) {
+					// 目前仅针对文本节点
+					if (!('text' in node)) break
+
+					// 计算要偏移的位置、要连接的两侧
+					let dx, dy
+					const step = 20
+					switch (code) {
+						case 'KeyW': // 向上：高度减少
+							dx = 0
+							dy = -step
+							break
+						case 'KeyS': // 向下：高度增加
+							dx = 0
+							dy = step
+							break
+						case 'KeyA': // 向左：宽度减少
+							dx = -step
+							dy = 0
+							break
+						case 'KeyD': // 向右：宽度增加
+							dx = step
+							dy = 0
+							break
+						default: // 不变
+							dx = dy = 0
+							break
+					}
+
+					// 计算新的尺寸
+					const width = Math.max(node.width + dx, 10)
+					const height = Math.max(node.height + dy, 10)
+
+					node.setData({
+						...node.getData(),
+						width,
+						height,
+					})
+				}
+
+				canvas.requestFrame()
+
+				// 跟随选中：将画布平移到所有选中的节点处
+				panToElements(canvas, selectedNodes(canvas))
+
+				break
+			}
+
 			// 若无选中节点⇒退出
 			if (!selectedNodes(canvas).next().value) break
 
@@ -145,26 +293,39 @@ export default class CanvasReferencePlugin extends Plugin {
 			for (const node of transportedSelectedNodes)
 				canvas.select(node)
 			// 跟随选中：将画布平移到所有选中的节点处
-			// 改成for循环，一个循环计算4个值
-			const selectedBBox: BoundedBox = {
-				minX: undefined,
-				minY: undefined,
-				maxX: undefined,
-				maxY: undefined,
-			} as unknown as BoundedBox
-			for (const node of transportedSelectedNodes) {
-				const { minX, minY, maxX, maxY } = node.bbox
-				selectedBBox.minX ??= minX
-				selectedBBox.minX = Math.min(selectedBBox.minX, minX)
-				selectedBBox.minY ??= minY
-				selectedBBox.minY = Math.min(selectedBBox.minY, minY)
-				selectedBBox.maxX ??= maxX
-				selectedBBox.maxX = Math.max(selectedBBox.maxX, maxX)
-				selectedBBox.maxY ??= maxY
-				selectedBBox.maxY = Math.max(selectedBBox.maxY, maxY)
-			}
-			console.log(canvas)
-			canvas.panIntoView(selectedBBox)
+			panToElements(canvas, transportedSelectedNodes)
+
+			break
+		}
+		// E「Extend」：若按E键时没有选中的节点（有选中→扩展），则在屏幕中心创建一个新节点
+		while (code === 'KeyE' && !shiftKey && !ctrlKey && !altKey && !metaKey) {
+			if (canvas.selection.size > 0) break
+
+			const { minX, minY, maxX, maxY } = canvas.getViewportBBox()
+			const x = (minX + maxX) / 2
+			const y = (minY + maxY) / 2
+			const width = 260 // Obsidian默认长宽
+			const height = 60 // Obsidian默认长宽
+			const text = '' // 空文本
+			// 仿制一个文本节点
+			const newNode = canvas.createTextNode({
+				pos: { x, y },
+				position: 'center',
+				save: true, focus: false,
+				size: { width, height },
+				text,
+			})
+			// * ℹ️需要更新碰撞箱：刚创建的节点没有
+			newNode.bbox = { minX: newNode.x, minY: newNode.y, maxX: newNode.x + newNode.width, maxY: newNode.y + newNode.height }
+
+			canvas.addNode(newNode)
+			canvas.requestSave()
+
+			setTimeout(() => {
+				canvas.selectOnly(newNode)
+				this.isKeyDown['KeyE'] = false
+				newNode.startEditing()
+			}, 0);
 
 			break
 		}
@@ -194,7 +355,6 @@ export default class CanvasReferencePlugin extends Plugin {
 		// Z「Zoom」：单按 放大，Shift 缩小
 		if (code === 'KeyZ' && !ctrlKey && !altKey && !metaKey)
 			canvas.zoomBy(shiftKey ? -0.1 : 0.1)
-
 	}
 
 

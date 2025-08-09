@@ -114,6 +114,9 @@ declare module "obsidian/canvas" {
 		getConnectedFiles: Function
 	}
 
+	/** 【独创】类型：上下左右 */
+	type CanvasElementSide = NodeSide
+
 	/** 一个白板连线/边 */
 	class CanvasEdge extends CanvasElement<CanvasEdgeData> {
 		/** 边上的标签 */
@@ -121,12 +124,12 @@ declare module "obsidian/canvas" {
 
 		from: {
 			node: CanvasNode,
-			side: 'up' | 'down' | 'left' | 'right',
+			side: CanvasElementSide,
 			end: 'none' | 'arrow' | unknown
 		}
 		to: {
 			node: CanvasNode,
-			side: 'up' | 'down' | 'left' | 'right',
+			side: CanvasElementSide,
 			end: 'none' | 'arrow' | unknown
 		}
 
@@ -307,7 +310,7 @@ declare module "obsidian/canvas" {
 		/** 设置白板数据（JSON） */
 		setData(data: CanvasData): CanvasData
 
-		/** 
+		/**
 		 * 为白板节点获取连边
 		 * * ⚠️不仅仅有发出的边，还有收到的边
 		 */
@@ -353,9 +356,9 @@ declare module "obsidian/canvas" {
 		/**
 		 * 在白板中创建文本节点
 		 * * 创建之后立马显示
-		 * * 参数含义参见 {@link ParamCanvasCreateNode}
+		 * * 参数含义参见 {@link ParamCanvasCreateTextNode}
 		 */
-		createTextNode(param: ParamCanvasCreateNode): CanvasNode
+		createTextNode(param: ParamCanvasCreateTextNode): CanvasNode
 
 		/**
 		 * 创建文件节点

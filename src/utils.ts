@@ -1,5 +1,6 @@
-import { MenuItem, App, FileView, ItemView, TFile, Menu, Notice } from "obsidian";
-import { Canvas, CanvasEdge, CanvasElement, CanvasNode, CanvasView } from "obsidian/canvas";
+import { randomUUID } from "crypto";
+import { MenuItem, App, FileView, ItemView, TFile, Menu, Notice, Side } from "obsidian";
+import { BoundedBox, Canvas, CanvasEdge, CanvasElement, CanvasElementSide, CanvasNode, CanvasView } from "obsidian/canvas";
 
 /** 用于注册事件的参数类型 */
 export type ParamEventRegister = {
@@ -315,3 +316,69 @@ export function* filteredDatasByKey<D, K extends string>(datas: Generator<D>, ge
 	for (const data of Object.values(selected))
 		yield data
 }
+
+/**
+ * 移动到所有选中的元素
+ */
+export function panToElements(canvas: Canvas, nodes: Iterable<CanvasElement>): void {
+	const selectedBBox: BoundedBox = {
+		minX: undefined,
+		minY: undefined,
+		maxX: undefined,
+		maxY: undefined,
+	} as unknown as BoundedBox
+	for (const node of nodes) {
+		const { minX, minY, maxX, maxY } = node.bbox
+		selectedBBox.minX ??= minX
+		selectedBBox.minX = Math.min(selectedBBox.minX, minX)
+		selectedBBox.minY ??= minY
+		selectedBBox.minY = Math.min(selectedBBox.minY, minY)
+		selectedBBox.maxX ??= maxX
+		selectedBBox.maxX = Math.max(selectedBBox.maxX, maxX)
+		selectedBBox.maxY ??= maxY
+		selectedBBox.maxY = Math.max(selectedBBox.maxY, maxY)
+	}
+	canvas.panIntoView(selectedBBox)
+}
+
+/**
+ * 添加连边而不刷新
+ * 参考自 https://github.com/Quorafind/Obsidian-Canvas-MindMap/blob/b26802cd164c47b84172fb35b9dd0a0806b1c377/src/utils.ts#L107
+ * ! ❌【2025-08-09 15:49:44】暂时用不了
+ */
+export function addEdge(canvas: Canvas, from: CanvasNode, to: CanvasNode, fromSide: CanvasElementSide, toSide: CanvasElementSide, refresh: boolean = true) {
+	if (!canvas) return;
+
+	const data = canvas.getData();
+	if (!data) return;
+
+	const id = randomUUID();
+	// canvas.addEdge({
+	// 	id,
+	// 	"fromNode": from,
+	// 	"fromSide": fromSide,
+	// 	"toNode": to,
+	// 	"toSide": toSide,
+	// })
+	canvas.importData({
+		"edges": [
+			...data.edges,
+			{
+				"id": id,
+				"fromNode": from.id,
+				"fromSide": fromSide,
+				"toNode": to.id,
+				"toSide": toSide,
+			}
+		],
+		"nodes": data.nodes,
+	});
+	// const edge = canvas.edges.get(id)
+	// if (!edge) return;
+	// console.warn(edge)
+	// canvas.addEdge(edge)
+
+	if (refresh) canvas.requestFrame()
+
+	return id
+};
