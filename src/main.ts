@@ -116,7 +116,7 @@ export default class CanvasReferencePlugin extends Plugin {
 						Math.abs(diffAngleRad - (rightDirectionRad + 2 * Math.PI)), // 角度相同，应对 0=2π 的状况
 					)
 					if (absDiffAngleRestricted > restrictedAngleRangeRad) {
-						console.error('angle out of range', (targetNode as any)?.text, diffAngleRad, absDiffAngleRestricted, restrictedAngleRangeRad)
+						// console.error('angle out of range', (targetNode as any)?.text, diffAngleRad, absDiffAngleRestricted, restrictedAngleRangeRad)
 						continue
 					}
 
@@ -124,7 +124,7 @@ export default class CanvasReferencePlugin extends Plugin {
 						, dy = Math.min(Math.abs(baseY - targetY), Math.abs(firstNode.bbox.minY - targetNode.bbox.maxY), Math.abs(targetNode.bbox.minY - firstNode.bbox.maxY))
 						, distanceCenter = Math.sqrt((baseX - targetX) ** 2 + (baseY - targetY) ** 2)
 						, distance = Math.min(Math.sqrt(dx * dx + dy * dy), distanceCenter)
-					console.warn((targetNode as any)?.text, dx, dy, distance)
+					// console.warn((targetNode as any)?.text, dx, dy, distance)
 
 					mostFit ??= { node: targetNode, distance }
 					if (mostFit.distance > distance) {
