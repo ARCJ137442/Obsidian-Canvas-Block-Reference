@@ -34,8 +34,13 @@ export default class CanvasReferencePlugin extends Plugin {
 			const canvas: Canvas = this.app.workspace.getActiveViewOfType(ItemView)?.canvas as (Canvas | undefined)
 			if (!canvas) return;
 
+			const {
+				key, code,
+				ctrlKey, metaKey, altKey, shiftKey,
+			} = e
+
 			// 空格+节点 开始编辑（连边作用无效）
-			if ([' ', 'Enter'].includes(e.key) && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+			if ([' ', 'Enter'].includes(key) && !shiftKey && !ctrlKey && !altKey && !metaKey) {
 				const firstElement = canvas.selection.values()?.next()?.value
 				if (!firstElement) return;
 				const isEditing = firstElement?.isEditing
@@ -47,18 +52,18 @@ export default class CanvasReferencePlugin extends Plugin {
 				}
 			}
 			// x 删除选区
-			if (e.key === 'x' && canvas.selection.size > 0 && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+			if (key === 'x' && canvas.selection.size > 0 && !shiftKey && !ctrlKey && !altKey && !metaKey) {
 				canvas.deleteSelection()
 			}
 			// q/Esc 取消编辑与选中
-			if (['q', 'Escape'].includes(e.key) && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+			if (['q', 'Escape'].includes(key) && !shiftKey && !ctrlKey && !altKey && !metaKey) {
 				// ✅【2025-07-10 01:39:41】在结束文本编辑后，可取消编辑
 				if (canvas.selection.size > 0) {
 					canvas.deselectAll()
 				}
 			}
 			// c 调整颜色（shift反向）
-			if (e.code === 'KeyC' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+			if (code === 'KeyC' && !ctrlKey && !altKey && !metaKey) {
 				const MAX_COLOR_LENGTH = 7
 				for (const element of canvas.selection.values()) {
 					// 正在编辑的元素不修改颜色
@@ -66,7 +71,7 @@ export default class CanvasReferencePlugin extends Plugin {
 					// 其它情况
 					if (isCanvasEdge(element) || isCanvasNode(element)) {
 						const color = Number(element.color)
-						const step = e.shiftKey ? MAX_COLOR_LENGTH - 1 : 1
+						const step = shiftKey ? MAX_COLOR_LENGTH - 1 : 1
 						if (isFinite(color)) {
 							const newColor = (color + step) % MAX_COLOR_LENGTH
 							element.setColor(newColor.toString())
@@ -75,12 +80,12 @@ export default class CanvasReferencePlugin extends Plugin {
 				}
 			}
 			// 选中+WASD：在节点之间移动选择
-			while (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code) && !e.ctrlKey && !e.altKey && !e.metaKey) {
+			while (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(code) && !ctrlKey && !altKey && !metaKey) {
 				// 若无选中节点⇒退出
 				if (!selectedNodes(canvas).next().value) break
 
 				// 获取按键对应的方向角
-				const rightDirectionDeg: number = { KeyD: 0, KeyS: 90, KeyA: 180, KeyW: 270 }[e.code]!
+				const rightDirectionDeg: number = { KeyD: 0, KeyS: 90, KeyA: 180, KeyW: 270 }[code]!
 				const rightDirectionRad = rightDirectionDeg * Math.PI / 180
 				// 限制角度范围，避免选中到边缘 | 此即：即便再近，也不会选中反方向的节点
 				const restrictedAngleRangeRad = 45 * Math.PI / 180
@@ -121,7 +126,7 @@ export default class CanvasReferencePlugin extends Plugin {
 
 				// 选中节点
 				if (transportedSelectedNodes.size <= 0) break
-				if (!e.shiftKey) canvas.deselectAll() // shift可以扩增选择
+				if (!shiftKey) canvas.deselectAll() // shift可以扩增选择
 				for (const node of transportedSelectedNodes)
 					canvas.select(node)
 				// 跟随选中：将画布平移到所有选中的节点处
@@ -149,7 +154,7 @@ export default class CanvasReferencePlugin extends Plugin {
 				break
 			}
 			// F「Focus」：单按 聚焦到选中的元素
-			if (e.code === 'KeyF' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey)
+			if (code === 'KeyF' && !shiftKey && !ctrlKey && !altKey && !metaKey)
 				// 有选择⇒聚焦到选择
 				if (canvas.selection.size > 0) canvas.zoomToSelection()
 				// 没选择⇒选中离屏幕中心最近的节点
@@ -172,8 +177,8 @@ export default class CanvasReferencePlugin extends Plugin {
 					if (closestNode) canvas.select(closestNode)
 				}
 			// Z「Zoom」：单按 放大，Shift 缩小
-			if (e.code === 'KeyZ' && !e.ctrlKey && !e.altKey && !e.metaKey)
-				canvas.zoomBy(e.shiftKey ? -0.1 : 0.1)
+			if (code === 'KeyZ' && !ctrlKey && !altKey && !metaKey)
+				canvas.zoomBy(shiftKey ? -0.1 : 0.1)
 		})
 	}
 
