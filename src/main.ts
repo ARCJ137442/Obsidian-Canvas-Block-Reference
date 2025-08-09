@@ -111,10 +111,20 @@ export default class CanvasReferencePlugin extends Plugin {
 
 					let diffAngleRad = Math.atan2(targetY - baseY, targetX - baseX)
 					if (diffAngleRad < 0) diffAngleRad += 2 * Math.PI // 规范范围到 0 ~ 2π
-					const absDiffAngleRestricted = Math.abs(diffAngleRad - rightDirectionRad)
-					if (absDiffAngleRestricted > restrictedAngleRangeRad) continue
+					const absDiffAngleRestricted = Math.min(
+						Math.abs(diffAngleRad - rightDirectionRad),
+						Math.abs(diffAngleRad - (rightDirectionRad + 2 * Math.PI)), // 角度相同，应对 0=2π 的状况
+					)
+					if (absDiffAngleRestricted > restrictedAngleRangeRad) {
+						console.error('angle out of range', (targetNode as any)?.text, diffAngleRad, absDiffAngleRestricted, restrictedAngleRangeRad)
+						continue
+					}
 
-					const distance = Math.sqrt((targetX - baseX) ** 2 + (targetY - baseY) ** 2)
+					const dx = Math.min(Math.abs(baseX - targetX), Math.abs(firstNode.bbox.minX - targetNode.bbox.maxX), Math.abs(targetNode.bbox.minX - firstNode.bbox.maxX))
+						, dy = Math.min(Math.abs(baseY - targetY), Math.abs(firstNode.bbox.minY - targetNode.bbox.maxY), Math.abs(targetNode.bbox.minY - firstNode.bbox.maxY))
+						, distanceCenter = Math.sqrt((baseX - targetX) ** 2 + (baseY - targetY) ** 2)
+						, distance = Math.min(Math.sqrt(dx * dx + dy * dy), distanceCenter)
+					console.warn((targetNode as any)?.text, dx, dy, distance)
 
 					mostFit ??= { node: targetNode, distance }
 					if (mostFit.distance > distance) {
