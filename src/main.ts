@@ -331,8 +331,11 @@ export default class CanvasReferencePlugin extends Plugin {
 		}
 		// F「Focus」：单按 聚焦到选中的元素
 		if (code === 'KeyF' && !shiftKey && !ctrlKey && !altKey && !metaKey)
+			// 没节点⇒坐标回到原点
+			if (canvas.nodes.size <= 0)
+				canvas.panTo(0, 0)
 			// 有选择⇒聚焦到选择
-			if (canvas.selection.size > 0) canvas.zoomToSelection()
+			else if (canvas.selection.size > 0) canvas.zoomToSelection()
 			// 没选择⇒选中离屏幕中心最近的节点
 			else {
 				const { minX, minY, maxX, maxY } = canvas.getViewportBBox()
@@ -355,6 +358,16 @@ export default class CanvasReferencePlugin extends Plugin {
 		// Z「Zoom」：单按 放大，Shift 缩小
 		if (code === 'KeyZ' && !ctrlKey && !altKey && !metaKey)
 			canvas.zoomBy(shiftKey ? -0.1 : 0.1)
+		// Shift+R：在俩节点之间随机添加连边
+		while (code === 'KeyR' && shiftKey && !ctrlKey && !altKey && !metaKey) {
+			const selected = selectedNodes(canvas)
+			const node1 = selected.next().value
+			const node2 = selected.next().value
+			if (!node1 || !node2) break
+			// * 🚧目前不整那么多花里胡哨的连边：❌两边之间自适应→可以 Alt+Shift+A 调整，❌方向反了→可以反转连边
+			addEdge(canvas, node1, node2, 'right', 'left', false)
+			break
+		}
 	}
 
 
