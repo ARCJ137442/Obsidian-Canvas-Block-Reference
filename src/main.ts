@@ -10,6 +10,7 @@ import { CMD_selectDownstreamNodes, EVENT_selectDownstreamNodesMenu, CMD_selectU
 import { BoundedBox, Canvas, CanvasElementSide, CanvasNode } from 'obsidian/canvas';
 import { addEdge, isCanvasEdge, isCanvasNode, panToElements, selectedNodes } from './utils';
 import { CMD_adjustEdgeOnside, CMD_toggleNodeEdgeSelect, EVENT_adjustEdgeOnside, EVENT_toggleNodeEdgeSelect } from './adjust-edge-onside';
+import { packRectangles } from './brickLayout';
 // import { CMD_selectAllEdgesInCanvas } from './commands/select-all-edges';
 // ! ✅「选择所有连边」的功能，在AdvancedCanvas中有了
 
@@ -367,6 +368,17 @@ export default class CanvasReferencePlugin extends Plugin {
 			// * 🚧目前不整那么多花里胡哨的连边：❌两边之间自适应→可以 Alt+Shift+A 调整，❌方向反了→可以反转连边
 			addEdge(canvas, node1, node2, 'right', 'left', false)
 			break
+		}
+		// Shift+Alt+Ctrl+E：紧凑布局
+		if (code === 'KeyE' && shiftKey && altKey && ctrlKey && !metaKey) {
+			const sxy = (n: CanvasNode, x: number, y: number) => n.setData({ ...n.getData(), x, y })
+			const ns = Array.from(canvas.nodes.values())
+			const w = ns.map(x => x.width), h = ns.map(x => x.height)
+			const { x, y } = packRectangles(w, h)
+			for (let i = 0; i < x.length; i++) {
+				sxy(ns[i], x[i], y[i])
+			}
+			console.warn('触发：紧凑布局')
 		}
 	}
 
