@@ -61,6 +61,9 @@ function _packRectangles(w: number[], h: number[]): { x: number[], y: number[], 
 	}
 
 	// 工具：计算方案优先级的指标
+	// 1. 矩形长宽差值：越接近正方形（越小），越优先
+	// 2. 外接矩形面积增量：越小越优先
+	// 3. 位置坐标：越靠近左上角越优先
 	function priorityIndexes(X: number, Y: number, W: number, H: number) {
 		const L = Math.min(bound.left, X);
 		const R = Math.max(bound.right, X + W);
@@ -76,7 +79,7 @@ function _packRectangles(w: number[], h: number[]): { x: number[], y: number[], 
 		const dWH = Math.abs(nW - nH);
 		const dWHo = Math.abs(oW - oH);
 
-		return [dWH - dWHo, A - originalA];
+		return [dWH - dWHo, A - originalA, X + Y];
 	}
 
 	for (let i = 0; i < n; ++i) {
@@ -104,9 +107,9 @@ function _packRectangles(w: number[], h: number[]): { x: number[], y: number[], 
 
 		// 3. 排序：先不扩大，再扩大最小 | 最终按优先级从大到小排序
 		candidates.sort((a, b) => {
-			const [ddWh1, dA1] = priorityIndexes(a.x, a.y, W, H);
-			const [ddWh2, dA2] = priorityIndexes(b.x, b.y, W, H);
-			return cmpChain(ddWh1 - ddWh2, dA1 - dA2);
+			const [ddWh1, dA1, xy1] = priorityIndexes(a.x, a.y, W, H);
+			const [ddWh2, dA2, xy2] = priorityIndexes(b.x, b.y, W, H);
+			return cmpChain(ddWh1 - ddWh2, dA1 - dA2, xy1 - xy2);
 		});
 
 		// 4. 选最优
