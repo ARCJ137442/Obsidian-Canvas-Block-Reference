@@ -380,6 +380,46 @@ export default class CanvasReferencePlugin extends Plugin {
 			}
 			console.warn('触发：紧凑布局')
 		}
+		// Y/Shift+Y: CTDP快速计数
+		// * 📅2025-08-20
+		// * 📌适用于末尾是整数的所有文字笔记
+		// * Y：计数+1
+		// * Shift+Y：计数清零
+		if (code === 'KeyY' && !ctrlKey && !altKey && !metaKey) {
+			// 遍历所有选中的文本节点
+			for (const node of selectedNodes(canvas)) {
+				if (!('text' in node) || typeof (node as any).text !== 'string') continue
+				let text = (node as any).text as string
+				// 获取当前数值：文本最后的digits
+				let oldValue = NaN
+				let lastI = text.length - 1
+				for (; lastI >= 0; lastI--) {
+					const newNumber = parseInt(text.slice(lastI), 10)
+					if (isNaN(newNumber)) break
+					else oldValue = newNumber
+				}
+
+				// 无效⇒提前退出
+				const invalid = !isFinite(oldValue) || isNaN(oldValue)
+				if (invalid) break
+
+				// 有效→看Shift获得新值
+				const newValue = shiftKey ? 0 : oldValue + 1
+				text = text.slice(0, lastI + 1) + newValue
+				node.setData({ ...node.getData(), text })
+
+				// Notice通知
+				const briefTitle = text.split('\n')[0]
+				let message
+				if (shiftKey) {// 清零
+					message = `🚫CTDP计数${briefTitle}清零：${oldValue}→${newValue}`
+				}
+				else { // 新增
+					message = `✅CTDP计数${briefTitle}增加：${oldValue}→${newValue}`
+				}
+				new Notice(message)
+			}
+		}
 	}
 
 
