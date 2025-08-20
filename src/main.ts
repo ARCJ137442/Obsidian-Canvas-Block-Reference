@@ -378,7 +378,7 @@ export default class CanvasReferencePlugin extends Plugin {
 			for (let i = 0; i < x.length; i++) {
 				sxy(ns[i], x[i], y[i])
 			}
-			console.warn('触发：紧凑布局')
+			new Notice('触发：紧凑布局')
 		}
 		// Y/Shift+Y: CTDP快速计数
 		// * 📅2025-08-20
@@ -411,11 +411,10 @@ export default class CanvasReferencePlugin extends Plugin {
 				// Notice通知
 				const briefTitle = text.split('\n')[0]
 				let message
-				if (shiftKey) {// 清零
-					message = `🚫CTDP计数${briefTitle}清零：${oldValue}→${newValue}`
-				}
-				else { // 新增
-					message = `✅CTDP计数${briefTitle}增加：${oldValue}→${newValue}`
+				if (shiftKey) { // 清零
+					message = `🚫CTDP计数 ${briefTitle}\n清零：${oldValue}→${newValue}`
+				} else { // 新增
+					message = `✅CTDP计数 ${briefTitle}\n增加：${oldValue}→${newValue}`
 				}
 				new Notice(message)
 			}
