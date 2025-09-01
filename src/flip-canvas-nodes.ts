@@ -122,7 +122,7 @@ function genEvent(title: I18nText, mode: FlipMode) {
  */
 function genCommand(title: I18nText, mode: FlipMode) {
 	return (app: App) => ({
-		id: 'copy-canvas-element-reference',
+		id: `flip-canvas-elements-${mode}`,
 		name: i18nText(title),
 		checkCallback(checking: boolean) {
 			// Conditions to check
