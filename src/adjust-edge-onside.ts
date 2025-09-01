@@ -8,7 +8,7 @@
 import { ZH_CN, EN_US } from './i18n';
 import { App, MenuItem } from "obsidian";
 import { BoundedBox, Canvas, CanvasEdge, CanvasEdgeData, NodeSide } from "obsidian/canvas";
-import { filteredDatasByKey, getActiveCanvasView, getEdgesBetweenNodes, getNodesAroundEdges, registerCanvasMenuItem, selectedEdges, selectedEdgesIncludesBetweens, selectedNodes } from "src/utils";
+import { filteredDatasByKey, getActiveCanvasView, getEdgesBetweenNodes, getNodesAroundEdges, registerCanvasMenuItem, selectedEdges, selectedEdgesIncludesBetweens, selectedNodes, updateEdgeData } from "src/utils";
 import { i18nText } from "./i18n";
 
 /** 统一的功能名称（命令/右键菜单） */
@@ -184,12 +184,8 @@ function calculateNearestLinkSides(boxF: BoundedBox, boxT: BoundedBox): [NodeSid
  * * 🚩实质上就是交换变量的值
  */
 function setSidesForEdge(e: CanvasEdge, sideF: NodeSide, sideT: NodeSide) {
-	const data = e.getData();
-
-	// 再赋值回去
-	data.fromSide = sideF;
-	data.toSide = sideT;
-
-	// 设置
-	e.setData(data)
+	updateEdgeData(e, {
+		fromSide: sideF,
+		toSide: sideT,
+	})
 }

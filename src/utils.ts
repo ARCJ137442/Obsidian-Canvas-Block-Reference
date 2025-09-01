@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { MenuItem, App, FileView, ItemView, TFile, Menu, Notice, Side } from "obsidian";
-import { BoundedBox, Canvas, CanvasEdge, CanvasElement, CanvasElementSide, CanvasNode, CanvasView } from "obsidian/canvas";
+import { BoundedBox, Canvas, CanvasEdge, CanvasEdgeData, CanvasElement, CanvasElementSide, CanvasNode, CanvasNodeData, CanvasView } from "obsidian/canvas";
 
 /** 用于注册事件的参数类型 */
 export type ParamEventRegister = {
@@ -344,7 +344,6 @@ export function panToElements(canvas: Canvas, nodes: Iterable<CanvasElement>): v
 /**
  * 添加连边而不刷新
  * 参考自 https://github.com/Quorafind/Obsidian-Canvas-MindMap/blob/b26802cd164c47b84172fb35b9dd0a0806b1c377/src/utils.ts#L107
- * ! ❌【2025-08-09 15:49:44】暂时用不了
  */
 export function addEdge(canvas: Canvas, from: CanvasNode, to: CanvasNode, fromSide: CanvasElementSide, toSide: CanvasElementSide, refresh: boolean = true) {
 	if (!canvas) return;
@@ -382,3 +381,34 @@ export function addEdge(canvas: Canvas, from: CanvasNode, to: CanvasNode, fromSi
 
 	return id
 };
+
+/**
+ * 更新节点数据
+ * * 🚩执行后节点立即有反应
+ * @param node 节点
+ * @param data 节点数据，如：位置、颜色
+ */
+export function updateNodeData(node: CanvasNode, data: Partial<CanvasNodeData>) {
+	node.setData({
+		...node.getData(),
+		...data
+	})
+}
+
+/**
+ * 更新连边数据
+ * * 🚩执行后连边立即有反应
+ * @param node 连边
+ * @param data 连边数据，如：锚点位置、颜色
+ */
+export function updateEdgeData(edge: CanvasEdge, data: Partial<CanvasEdgeData>) {
+	edge.setData({
+		...edge.getData(),
+		...data
+	})
+}
+
+/** 设置节点位置 */
+export function setNodePosition(node: CanvasNode, x: number, y: number) {
+	updateNodeData(node, { x, y })
+}

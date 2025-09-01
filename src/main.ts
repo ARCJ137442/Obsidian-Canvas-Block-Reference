@@ -7,10 +7,11 @@ import { suggestAround } from './canvas-link-suggest';
 import { CMD_reverseSelectedCanvasEdges, EVENT_reverseEdges } from './reverse-edge';
 import { CMD_changeElementID, EVENT_changeElementID } from './change-element-id';
 import { CMD_selectDownstreamNodes, EVENT_selectDownstreamNodesMenu, CMD_selectUpstreamNodes, EVENT_selectUpstreamNodesMenu } from './select-nodes-via-edges';
-import { BoundedBox, Canvas, CanvasElementSide, CanvasNode } from 'obsidian/canvas';
-import { addEdge, isCanvasEdge, isCanvasNode, panToElements, selectedNodes } from './utils';
+import { Canvas, CanvasElementSide, CanvasNode } from 'obsidian/canvas';
+import { addEdge, isCanvasEdge, isCanvasNode, panToElements, selectedNodes, updateNodeData, setNodePosition } from './utils';
 import { CMD_adjustEdgeOnside, CMD_toggleNodeEdgeSelect, EVENT_adjustEdgeOnside, EVENT_toggleNodeEdgeSelect } from './adjust-edge-onside';
 import { packRectangles } from './brickLayout';
+import { CMD_flipCanvasElementsH, CMD_flipCanvasElementsV, EVENT_flipCanvasElementsH, EVENT_flipCanvasElementsV } from './flip-canvas-nodes';
 // import { CMD_selectAllEdgesInCanvas } from './commands/select-all-edges';
 // ! ✅「选择所有连边」的功能，在AdvancedCanvas中有了
 
@@ -220,11 +221,7 @@ export default class CanvasReferencePlugin extends Plugin {
 					const width = Math.max(node.width + dx, 10)
 					const height = Math.max(node.height + dy, 10)
 
-					node.setData({
-						...node.getData(),
-						width,
-						height,
-					})
+					updateNodeData(node, { width, height })
 				}
 
 				canvas.requestFrame()
@@ -371,7 +368,7 @@ export default class CanvasReferencePlugin extends Plugin {
 		}
 		// Shift+Alt+Ctrl+E：紧凑布局
 		if (code === 'KeyE' && shiftKey && altKey && ctrlKey && !metaKey) {
-			const sxy = (n: CanvasNode, x: number, y: number) => n.setData({ ...n.getData(), x, y })
+			const sxy = (n: CanvasNode, x: number, y: number) => setNodePosition(n, x, y)
 			const ns = Array.from(canvas.nodes.values())
 			const w = ns.map(x => x.width), h = ns.map(x => x.height)
 			const { x, y } = packRectangles(w, h)
@@ -436,6 +433,7 @@ export default class CanvasReferencePlugin extends Plugin {
 			EVENT_selectUpstreamNodesMenu,
 			EVENT_adjustEdgeOnside,
 			EVENT_toggleNodeEdgeSelect,
+			EVENT_flipCanvasElementsH, EVENT_flipCanvasElementsV
 		]
 		// 注册事件
 		for (const { on, callback } of EVENTS)
@@ -458,6 +456,7 @@ export default class CanvasReferencePlugin extends Plugin {
 			CMD_adjustEdgeOnside,
 			CMD_selectUpstreamNodes,
 			CMD_toggleNodeEdgeSelect,
+			CMD_flipCanvasElementsH, CMD_flipCanvasElementsV
 		]
 		// 添加命令
 		for (const cmdF of COMMANDS)
