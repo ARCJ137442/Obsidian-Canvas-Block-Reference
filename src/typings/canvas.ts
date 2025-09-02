@@ -84,7 +84,6 @@ declare module "obsidian/canvas" {
 		contentBlockerEl: object
 		placeholderEl: object
 		child: object
-		setText: Function
 		render: Function
 		showMenu: Function
 		convertToFile: Function
@@ -112,6 +111,13 @@ declare module "obsidian/canvas" {
 		onResizePointerdown: Function
 		onConnectionPointerdown: Function
 		getConnectedFiles: Function
+	}
+
+	/** 一个白板节点/文本节点 */
+	class CanvasTextNode extends CanvasNode {
+		text: string
+
+		setText(text: string): void
 	}
 
 	/** 【独创】类型：上下左右 */

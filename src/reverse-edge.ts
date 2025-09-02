@@ -8,7 +8,7 @@
 import { ZH_CN, EN_US } from './i18n';
 import { App, MenuItem } from "obsidian";
 import { Canvas, CanvasEdge, CanvasEdgeData } from "obsidian/canvas";
-import { filteredDatasByKey, filterRepeatedDatasByKey, getActiveCanvasView, registerCanvasMenuItem, selectedEdgesIncludesBetweens } from "src/utils";
+import { filteredDatasByKey, filterRepeatedDatasByKey, getActiveCanvasView, registerCanvasMenuItem, selectedEdgesIncludesBetweens, updateEdgeData } from "src/utils";
 import { i18nText } from "./i18n";
 
 
@@ -80,12 +80,7 @@ export function reverseSelectedEdges(canvas: Canvas): void {
 
 /** 反转一个边对象 */
 export function reverseEdge(e: CanvasEdge): void {
-	// 获取一个data对象（与e引用解绑）
-	const data = e.getData();
-	// 反转之
-	reverseEdgeData(data)
-	// 设置回去
-	e.setData(data)
+	updateEdgeData(e, reverseEdgeData(e.getData()))
 }
 
 /**

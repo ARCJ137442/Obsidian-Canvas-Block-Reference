@@ -8,7 +8,7 @@ import { CMD_reverseSelectedCanvasEdges, EVENT_reverseEdges } from './reverse-ed
 import { CMD_changeElementID, EVENT_changeElementID } from './change-element-id';
 import { CMD_selectDownstreamNodes, EVENT_selectDownstreamNodesMenu, CMD_selectUpstreamNodes, EVENT_selectUpstreamNodesMenu } from './select-nodes-via-edges';
 import { Canvas, CanvasElementSide, CanvasNode } from 'obsidian/canvas';
-import { addEdge, isCanvasEdge, isCanvasNode, panToElements, selectedNodes, updateNodeData, setNodePosition } from './utils';
+import { addEdge, isCanvasEdge, isCanvasNode, panToElements, selectedNodes, updateNodeData, setNodePosition, isCanvasTextNode } from './utils';
 import { CMD_adjustEdgeOnside, CMD_toggleNodeEdgeSelect, EVENT_adjustEdgeOnside, EVENT_toggleNodeEdgeSelect } from './adjust-edge-onside';
 import { packRectangles } from './brickLayout';
 import { CMD_flipCanvasElementsH, CMD_flipCanvasElementsV, EVENT_flipCanvasElementsH, EVENT_flipCanvasElementsV } from './flip-canvas-nodes';
@@ -152,8 +152,7 @@ export default class CanvasReferencePlugin extends Plugin {
 					canvas.requestSave()
 
 					newNode.color = node.color
-					// newNode.setData({ // ! ⚠️【2025-08-09 14:53:19】必须放在addNode后边，不然没有id，也会表现得像是「不在白板中」
-					// 	...node.getData(),
+					// updateNodeData(newNode, { // ! ⚠️【2025-08-09 14:53:19】必须放在addNode后边，不然没有id，也会表现得像是「不在白板中」
 					// 	// 除了id、x、y、width、height、text的字段
 					// 	x: newNode.x,
 					// 	y: newNode.y,
@@ -385,8 +384,8 @@ export default class CanvasReferencePlugin extends Plugin {
 		if (code === 'KeyY' && !ctrlKey && !altKey && !metaKey) {
 			// 遍历所有选中的文本节点
 			for (const node of selectedNodes(canvas)) {
-				if (!('text' in node) || typeof (node as any).text !== 'string') continue
-				let text = (node as any).text as string
+				if (!isCanvasTextNode(node)) continue
+				let text = node.text
 				// 获取当前数值：文本最后的digits
 				let oldValue = NaN
 				let lastI = text.length - 1
@@ -403,7 +402,7 @@ export default class CanvasReferencePlugin extends Plugin {
 				// 有效→看Shift获得新值
 				const newValue = shiftKey ? 0 : oldValue + 1
 				text = text.slice(0, lastI + 1) + newValue
-				node.setData({ ...node.getData(), text })
+				node.setText(text)
 
 				// Notice通知
 				const briefTitle = text.split('\n')[0]

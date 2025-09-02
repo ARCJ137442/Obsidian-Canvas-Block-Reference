@@ -165,12 +165,6 @@ export function changeElementId<D extends CanvasElementData>(element: CanvasElem
  * * ⚠️除了重命名，不会干任何东西（会影响别处的链接）
  */
 export function _changeElementId<D extends CanvasElementData>(element: CanvasElement<D>, newId: string) {
-	// // 获取数据（新引用）
-	// const data = element.getData()
-	// // 修改数据
-	// data.id = newId
-	// // 应用数据
-	// element.setData(data)
 	// 先修改索引
 	const canvas = element.canvas
 	// @ts-ignore

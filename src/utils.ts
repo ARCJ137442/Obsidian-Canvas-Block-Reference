@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { MenuItem, App, FileView, ItemView, TFile, Menu, Notice, Side } from "obsidian";
-import { BoundedBox, Canvas, CanvasEdge, CanvasEdgeData, CanvasElement, CanvasElementSide, CanvasNode, CanvasNodeData, CanvasView } from "obsidian/canvas";
+import { BoundedBox, Canvas, CanvasEdge, CanvasEdgeData, CanvasElement, CanvasElementSide, CanvasNode, CanvasNodeData, CanvasTextNode, CanvasView } from "obsidian/canvas";
 
 /** 用于注册事件的参数类型 */
 export type ParamEventRegister = {
@@ -406,6 +406,11 @@ export function updateEdgeData(edge: CanvasEdge, data: Partial<CanvasEdgeData>) 
 		...edge.getData(),
 		...data
 	})
+}
+
+/** 判断是否为文本节点 */
+export function isCanvasTextNode(element: CanvasElement): element is CanvasTextNode {
+	return 'text' in element
 }
 
 /** 设置节点位置 */
