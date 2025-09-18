@@ -417,3 +417,26 @@ export function isCanvasTextNode(element: CanvasElement): element is CanvasTextN
 export function setNodePosition(node: CanvasNode, x: number, y: number) {
 	updateNodeData(node, { x, y })
 }
+
+/** 迭代 enumerate */
+export function* enumerate<T>(iterable: Iterable<T>): Generator<[number, T]> {
+	let index = 0
+	for (const item of iterable) {
+		yield [index, item]
+		index++
+	}
+}
+
+/** 计算文本行数 */
+export function nLines(text: string): number {
+	return (text.match(/\n/g) || []).length + 1
+}
+
+/** 求和 */
+export function sum(iterable: Iterable<number>): number {
+	let sum = 0
+	for (const item of iterable) {
+		sum += item
+	}
+	return sum
+}
