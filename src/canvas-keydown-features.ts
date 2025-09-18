@@ -355,8 +355,15 @@ export async function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: stri
 					const content = rest.trimStart() // 若开头有换行，去掉换行
 
 					text = formatNoteText({
-						title: `${title} / ${subtitle}`,
-						level: level <= 0 || level > 7 ? 0 : level + subLevel + 1,
+						title: ( // 标题：路径/仅子标题 灵活使用
+							title.length > subtitle.length
+								? `${title} / ${subtitle}` // 父标题长，用路径形式
+								: subtitle // 子标题长，只用子标题
+						),
+						level: ( // 级别+1：大→小→无
+							level <= 0 || level > 7 ? 0 // 没有级别
+								: level + subLevel + 1 // 有级别
+						),
 						content,
 						unorderedList: children,
 					});
