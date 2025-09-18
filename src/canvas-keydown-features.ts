@@ -666,5 +666,5 @@ function formatNoteText({
 }: NoteText): string {
 	return (formatMdTitle(title, level)
 		+ (content ? '\n' + content : '')
-		+ '\n' + formatListItems(unorderedList))
+		+ (unorderedList.length ? '\n' + formatListItems(unorderedList) : ''))
 }
