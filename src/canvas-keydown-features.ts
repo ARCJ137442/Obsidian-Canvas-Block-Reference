@@ -39,18 +39,23 @@ export async function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: stri
 	}
 	// c 调整颜色（shift反向）
 	if (code === 'KeyC' && !ctrlKey && !altKey && !metaKey) {
-		const MAX_COLOR_LENGTH = 7
+		const AVAILABLE_COLORS = ['0', '1', '2', '3', '4', '5', '6', '#000000', '#ffffff']
+		const N_COLORS = AVAILABLE_COLORS.length
 		for (const element of canvas.selection.values()) {
 			// 正在编辑的元素不修改颜色
 			if (isCanvasNode(element) && element.isEditing) continue
 			// 其它情况
 			if (isCanvasEdge(element) || isCanvasNode(element)) {
-				const color = Number(element.color)
-				const step = shiftKey ? MAX_COLOR_LENGTH - 1 : 1
-				if (isFinite(color)) {
-					const newColor = (color + step) % MAX_COLOR_LENGTH
-					element.setColor(newColor.toString())
-				}
+				// 获取索引
+				if (element.color === '') element.color = '0' // 空颜色与'0'等价
+				let colorIndex = AVAILABLE_COLORS.indexOf(element.color)
+				console.warn(AVAILABLE_COLORS, colorIndex, element.color, typeof element.color)
+				if (colorIndex < 0) continue
+				// 计算新索引
+				const step = shiftKey ? N_COLORS - 1 : 1
+				const newColorIndex = (colorIndex + step) % N_COLORS
+				const newColor = AVAILABLE_COLORS[newColorIndex]
+				element.setColor(newColor)
 			}
 		}
 	}
