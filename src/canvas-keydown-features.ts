@@ -49,7 +49,6 @@ export async function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: stri
 				// 获取索引
 				if (element.color === '') element.color = '0' // 空颜色与'0'等价
 				let colorIndex = AVAILABLE_COLORS.indexOf(element.color)
-				console.warn(AVAILABLE_COLORS, colorIndex, element.color, typeof element.color)
 				if (colorIndex < 0) continue
 				// 计算新索引
 				const step = shiftKey ? N_COLORS - 1 : 1
