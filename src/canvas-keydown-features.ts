@@ -39,7 +39,7 @@ export async function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: stri
 	}
 	// c 调整颜色（shift反向）
 	if (code === 'KeyC' && !ctrlKey && !altKey && !metaKey) {
-		const AVAILABLE_COLORS = ['0', '1', '2', '3', '4', '5', '6', '#000000', '#ffffff']
+		const AVAILABLE_COLORS = ['', '1', '2', '3', '4', '5', '6', '#000000', '#ffffff']
 		const N_COLORS = AVAILABLE_COLORS.length
 		for (const element of canvas.selection.values()) {
 			// 正在编辑的元素不修改颜色
@@ -47,7 +47,7 @@ export async function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: stri
 			// 其它情况
 			if (isCanvasEdge(element) || isCanvasNode(element)) {
 				// 获取索引
-				if (element.color === '') element.color = '0' // 空颜色与'0'等价
+				// ! 空颜色并不与'0'等价，前者才是Obsidian的默认值
 				let colorIndex = AVAILABLE_COLORS.indexOf(element.color)
 				if (colorIndex < 0) continue
 				// 计算新索引
