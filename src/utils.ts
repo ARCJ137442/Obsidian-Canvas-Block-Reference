@@ -440,3 +440,17 @@ export function sum(iterable: Iterable<number>): number {
 	}
 	return sum
 }
+
+/** 拆分单次 */
+export function splitOnce(str: string, separator: string): [string, string] | null {
+	const index = str.indexOf(separator)
+	if (index === -1) return null
+	return [str.slice(0, index), str.slice(index + separator.length)]
+}
+
+/** 拆分单次（末尾） */
+export function lastSplitOnce(str: string, separator: string): [string, string] | null {
+	const index = str.lastIndexOf(separator)
+	if (index === -1) return null
+	return [str.slice(0, index), str.slice(index + separator.length)]
+}
