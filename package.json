@@ -1,7 +1,7 @@
 {
-	"name": "canvas-block-reference",
-	"version": "0.0.10",
-	"description": "A plugin for you to block refer card in canvas.",
+	"name": "obsidian-whiteboard-deduction-arc",
+	"version": "0.1.0",
+	"description": "ARC 自用的 Obsidian Canvas 白板推演工具集。",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
@@ -11,7 +11,7 @@
 		"release": "pnpm run version && git add . && git commit -m \"chore: bump version $package_version\" && git tag $package_version && git push && git push --tags"
 	},
 	"keywords": [],
-	"author": "Boninall",
+	"author": "ARCJ137442",
 	"license": "MIT",
 	"devDependencies": {
 		"@types/node": "^16.11.6",

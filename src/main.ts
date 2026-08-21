@@ -17,12 +17,24 @@ import type { ContinuousZoomController } from './canvas-zoom';
 import { KeyboardEventGuard } from './keyboard-event-guard';
 import { WindowRegistrationRegistry } from './window-registration';
 import type { Canvas } from 'obsidian/canvas';
+import { DEFAULT_CANVAS_SHORTCUT_SETTINGS, normalizeCanvasShortcutSettings } from './canvas-shortcuts';
+import type { CanvasShortcutSettingKey, CanvasShortcutSettings } from './canvas-shortcuts';
+import { CanvasShortcutSettingTab } from './settings';
 // import { CMD_selectAllEdgesInCanvas } from './commands/select-all-edges';
 // ! ✅「选择所有连边」的功能，在AdvancedCanvas中有了
 
 export default class CanvasReferencePlugin extends Plugin {
+	private settings: CanvasShortcutSettings = DEFAULT_CANVAS_SHORTCUT_SETTINGS
+	private persistedData: Record<string, unknown> = {}
 
 	async onload(): Promise<void> {
+		const loadedData = await this.loadData() as unknown
+		if (loadedData && typeof loadedData === "object" && !Array.isArray(loadedData)) {
+			this.persistedData = { ...(loadedData as Record<string, unknown>) }
+			this.settings = normalizeCanvasShortcutSettings(this.persistedData.shortcuts)
+		}
+		this.addSettingTab(new CanvasShortcutSettingTab(this.app, this))
+
 		// 功能：链接寻路
 		this.patchWorkspaceLeaf();
 
@@ -44,6 +56,24 @@ export default class CanvasReferencePlugin extends Plugin {
 	private windowCleanups = new Map<Window, () => void>()
 	private handledKeyboardEvents = new KeyboardEventGuard()
 
+	getShortcutSettings(): CanvasShortcutSettings {
+		return this.settings
+	}
+
+	async updateShortcut(id: Exclude<CanvasShortcutSettingKey, "edit" | "cancelSelection">, code: string): Promise<void> {
+		this.settings = { ...this.settings, [id]: code }
+		this.clearAllKeyboardStates()
+		this.persistedData.shortcuts = this.settings
+		await this.saveData(this.persistedData)
+	}
+
+	private clearAllKeyboardStates(): void {
+		for (const state of this.keyDownStates.values()) {
+			for (const code of Object.keys(state)) delete state[code]
+		}
+		for (const controller of this.zoomControllers.values()) controller.stop()
+	}
+
 	private registerCanvasKeyListeners(): void {
 		const registerForWindow = (eventWindow: Window | null): void => {
 			if (!eventWindow || !this.keyEventWindows.claim(eventWindow)) return
@@ -62,7 +92,7 @@ export default class CanvasReferencePlugin extends Plugin {
 					setInterval: (callback, delay) => this.registerInterval(eventWindow.setInterval(callback, delay)),
 					clearInterval: (interval) => eventWindow.clearInterval(interval),
 				},
-				() => isKeyDown['KeyZ'] === true,
+				() => isKeyDown[this.settings.zoom] === true,
 				() => (
 					isKeyDown['ShiftLeft'] === true
 					|| isKeyDown['ShiftRight'] === true
@@ -86,6 +116,10 @@ export default class CanvasReferencePlugin extends Plugin {
 				if (!this.handledKeyboardEvents.consume(event)) return
 
 				isKeyDown[event.code] = true
+				if (event.ctrlKey || event.altKey || event.metaKey) {
+					zoomController.stop()
+					zoomCanvas = undefined
+				}
 				if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
 					zoomShiftFallback = true
 				}
@@ -95,7 +129,7 @@ export default class CanvasReferencePlugin extends Plugin {
 						zoomShiftFallback = shiftKey
 						zoomController.start()
 					},
-				})
+				}, this.settings)
 				if (handled) {
 					event.preventDefault()
 					event.stopImmediatePropagation()
@@ -107,7 +141,7 @@ export default class CanvasReferencePlugin extends Plugin {
 				if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
 					zoomShiftFallback = isKeyDown['ShiftLeft'] === true || isKeyDown['ShiftRight'] === true
 				}
-				if (event.code === 'KeyZ') {
+				if (event.code === this.settings.zoom) {
 					zoomController.stop()
 					zoomCanvas = undefined
 				}

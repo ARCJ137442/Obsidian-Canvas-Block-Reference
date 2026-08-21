@@ -6,7 +6,8 @@ import { Canvas, CanvasElementSide, CanvasNode } from "obsidian/canvas";
 import { addEdge, enumerate, isCanvasEdge, isCanvasNode, isCanvasTextNode, nLines, panToElements, selectedNodes, setNodePosition, sum, updateNodeData } from "./utils";
 import { Notice } from "obsidian";
 import { packRectangles } from "./brickLayout";
-import { getCanvasShortcutId } from "./canvas-shortcuts";
+import { DEFAULT_CANVAS_SHORTCUT_SETTINGS, getCanvasDirection, getCanvasShortcutId } from "./canvas-shortcuts";
+import type { CanvasShortcutSettings } from "./canvas-shortcuts";
 import { commitCanvasMutation } from "./canvas-mutations";
 import { createCanvasTextNode } from "./canvas-node-operations";
 
@@ -20,16 +21,17 @@ export function onCanvasKeyDown(
 	isKeyDown: { [code: string]: boolean },
 	canvas: Canvas,
 	actions: CanvasKeyboardActions = {},
+	settings: CanvasShortcutSettings = DEFAULT_CANVAS_SHORTCUT_SETTINGS,
 ): boolean {
-	if (!getCanvasShortcutId(e)) return false
+	const shortcutId = getCanvasShortcutId(e, settings)
+	if (!shortcutId) return false
 
 	const {
-		key, code,
-		ctrlKey, metaKey, altKey, shiftKey,
+		code, shiftKey,
 	} = e
 
 	// 空格+节点 开始编辑（连边作用无效）
-	if ([' ', 'Enter'].includes(key) && !shiftKey && !ctrlKey && !altKey && !metaKey) {
+	if (shortcutId === "edit") {
 		const firstElement = canvas.selection.values()?.next()?.value
 		if (!firstElement) return false;
 		const isEditing = firstElement?.isEditing
@@ -41,18 +43,18 @@ export function onCanvasKeyDown(
 		}
 	}
 	// x 删除选区
-	if (key === 'x' && canvas.selection.size > 0 && !shiftKey && !ctrlKey && !altKey && !metaKey) {
+	if (shortcutId === "deleteSelection" && canvas.selection.size > 0) {
 		canvas.deleteSelection()
 	}
 	// q/Esc 取消编辑与选中
-	if (['q', 'Escape'].includes(key) && !shiftKey && !ctrlKey && !altKey && !metaKey) {
+	if (shortcutId === "cancelSelection") {
 		// ✅【2025-07-10 01:39:41】在结束文本编辑后，可取消编辑
 		if (canvas.selection.size > 0) {
 			canvas.deselectAll()
 		}
 	}
 	// c 调整颜色（shift反向）
-	if (code === 'KeyC' && !ctrlKey && !altKey && !metaKey) {
+	if (shortcutId === "cycleColor") {
 		const AVAILABLE_COLORS = ['', '1', '2', '3', '4', '5', '6', '#000000', '#ffffff']
 		const N_COLORS = AVAILABLE_COLORS.length
 		if (canvas.selection.size <= 0) return true
@@ -76,9 +78,11 @@ export function onCanvasKeyDown(
 		}, { refresh: false })
 	}
 	// 选中+WASD：在节点之间移动选择
-	while (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(code) && !ctrlKey && !altKey && !metaKey) {
+	while (shortcutId === "directional") {
+		const direction = getCanvasDirection(code, settings)
+		if (!direction) break
 		// E「Expand」：组合键+WASD 创建一个文本节点，并进行延展
-		if (isKeyDown['KeyE']) {
+		if (isKeyDown[settings.extend]) {
 			const newNodes: CanvasNode[] = []
 
 			const node: CanvasNode = canvas.selection.values().next().value // ! 📌【2025-08-09 14:40:23】还是只选中一个
@@ -94,23 +98,23 @@ export function onCanvasKeyDown(
 				let dx, dy
 				let fromSide: CanvasElementSide, toSide: CanvasElementSide
 				const padding = 20
-				switch (code) {
-					case 'KeyW': // 向上：出现在上方，dy上一个height
+				switch (direction) {
+					case 'north': // 向上：出现在上方，dy上一个height
 						dx = 0
 						dy = -node.height - padding
 						fromSide = 'top', toSide = 'bottom' // 从顶面连到底面
 						break
-					case 'KeyS': // 向下：出现在下方，dy下一个height
+					case 'south': // 向下：出现在下方，dy下一个height
 						dx = 0
 						dy = node.height + padding
 						fromSide = 'bottom', toSide = 'top' // 从底面连到顶面
 						break
-					case 'KeyA': // 向左：出现在左侧，dx左一个width
+					case 'west': // 向左：出现在左侧，dx左一个width
 						dx = -node.width - padding
 						dy = 0
 						fromSide = 'left', toSide = 'right' // 从左侧连到右侧
 						break
-					case 'KeyD': // 向右：出现在右侧，dx右一个width
+					case 'east': // 向右：出现在右侧，dx右一个width
 						dx = node.width + padding
 						dy = 0
 						fromSide = 'right', toSide = 'left' // 从右侧连到左侧
@@ -162,7 +166,7 @@ export function onCanvasKeyDown(
 			break
 		}
 		// R「Resize」：调整选中节点的大小
-		if (isKeyDown['KeyR']) {
+		if (isKeyDown[settings.createEdge]) {
 			const selected = [...selectedNodes(canvas)].filter(node => 'text' in node)
 			const node: CanvasNode = selected[0] // ! 📌【2025-08-09 14:40:23】还是只选中一个
 			if (!node) break
@@ -173,20 +177,20 @@ export function onCanvasKeyDown(
 				// 计算要偏移的位置、要连接的两侧
 				let dx, dy
 				const step = 20
-				switch (code) {
-					case 'KeyW': // 向上：高度减少
+				switch (direction) {
+					case 'north': // 向上：高度减少
 						dx = 0
 						dy = -step
 						break
-					case 'KeyS': // 向下：高度增加
+					case 'south': // 向下：高度增加
 						dx = 0
 						dy = step
 						break
-					case 'KeyA': // 向左：宽度减少
+					case 'west': // 向左：宽度减少
 						dx = -step
 						dy = 0
 						break
-					case 'KeyD': // 向右：宽度增加
+					case 'east': // 向右：宽度增加
 						dx = step
 						dy = 0
 						break
@@ -215,7 +219,7 @@ export function onCanvasKeyDown(
 		if (!selectedNodes(canvas).next().value) break
 
 		// 获取按键对应的方向角
-		const rightDirectionDeg: number = { KeyD: 0, KeyS: 90, KeyA: 180, KeyW: 270 }[code]!
+		const rightDirectionDeg: number = { east: 0, south: 90, west: 180, north: 270 }[direction]
 		const newSelectedNodes = transportedSelectedNodes(canvas, rightDirectionDeg);
 
 		// 选中节点
@@ -229,7 +233,7 @@ export function onCanvasKeyDown(
 		break
 	}
 	// E「Extend」：若按E键时没有选中的节点（有选中→扩展），则在屏幕中心创建一个新节点
-	while (code === 'KeyE' && !shiftKey && !ctrlKey && !altKey && !metaKey) {
+	while (shortcutId === "extend") {
 		if (canvas.selection.size > 0) break
 
 		const { minX, minY, maxX, maxY } = canvas.getViewportBBox()
@@ -242,14 +246,14 @@ export function onCanvasKeyDown(
 		// 切换到选中状态
 		setTimeout(() => {
 			canvas.selectOnly(newNode);
-			isKeyDown['KeyE'] = false;
+			isKeyDown[settings.extend] = false;
 			newNode.startEditing();
 		}, 0);
 
 		break
 	}
 	// F「Focus」：单按 聚焦到选中的元素
-	if (code === 'KeyF' && !shiftKey && !ctrlKey && !altKey && !metaKey)
+	if (shortcutId === "focus")
 		// 没节点⇒坐标回到原点
 		if (canvas.nodes.size <= 0)
 			canvas.panTo(0, 0)
@@ -275,12 +279,12 @@ export function onCanvasKeyDown(
 			if (closestNode) canvas.select(closestNode)
 		}
 	// Z「Zoom」：单按 放大，Shift 缩小
-	if (code === 'KeyZ' && !ctrlKey && !altKey && !metaKey) {
+	if (shortcutId === "zoom") {
 		if (actions.startContinuousZoom) actions.startContinuousZoom(canvas, shiftKey)
 		else canvas.zoomBy(shiftKey ? -0.1 : 0.1)
 	}
 	// Shift+R：在俩节点之间随机添加连边
-	while (code === 'KeyR' && shiftKey && !ctrlKey && !altKey && !metaKey) {
+	while (shortcutId === "createEdge") {
 		const selected = selectedNodes(canvas)
 		const node1 = selected.next().value
 		const node2 = selected.next().value
@@ -292,7 +296,7 @@ export function onCanvasKeyDown(
 		break
 	}
 	// Shift+Alt+Ctrl+E：紧凑布局
-	if (code === 'KeyE' && shiftKey && altKey && ctrlKey && !metaKey) {
+	if (shortcutId === "compactLayout") {
 		const ns = Array.from(canvas.nodes.values())
 		if (ns.length <= 0) {
 			new Notice('紧凑布局：白板中没有节点')
@@ -322,7 +326,7 @@ export function onCanvasKeyDown(
 	// * 📌适用于末尾是整数的所有文字笔记
 	// * Y：计数+1
 	// * Shift+Y：计数清零
-	if (code === 'KeyY' && !ctrlKey && !altKey && !metaKey) {
+	if (shortcutId === "counter") {
 		// 遍历所有选中的文本节点
 		commitCanvasMutation(canvas, () => {
 		for (const node of selectedNodes(canvas)) {
@@ -359,7 +363,7 @@ export function onCanvasKeyDown(
 		}, { refresh: false })
 	}
 	// 数字键Digit，小键盘Numpad | ❗Alt组合键被占用了
-	if (code.startsWith('Digit') && !shiftKey && !ctrlKey /* && altKey */ && !metaKey) {
+	if (shortcutId === "formatTitle") {
 		commitCanvasMutation(canvas, () => {
 		for (const node of selectedNodes(canvas)) {
 			if (!isCanvasTextNode(node)) continue
@@ -375,7 +379,7 @@ export function onCanvasKeyDown(
 		}, { refresh: false })
 	}
 	// 大写K → 拆分Markdown无序列表
-	if (code === 'KeyK' && shiftKey && !ctrlKey && !altKey && !metaKey) {
+	if (shortcutId === "splitList") {
 		commitCanvasMutation(canvas, () => {
 		for (const node of selectedNodes(canvas)) {
 			if (!isCanvasTextNode(node)) continue

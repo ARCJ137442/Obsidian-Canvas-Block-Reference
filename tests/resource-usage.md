@@ -52,5 +52,34 @@
 | 2026-08-21 | `life-panel-whiteboard-multi-window-final-errors-v1` | 清空并重载后 `dev:errors` 无错误 | 831.21 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
 | 2026-08-21 | `life-panel-deploy-whiteboard-0.0.10-final-v1` | 部署 0.0.10 main.js/manifest 并 CLI 重载成功 | 781.25 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
 | 2026-08-21 | `life-panel-whiteboard-0.0.10-final-state-errors-v1` | 运行态版本 0.0.10；注册/清理/状态均为 2；`dev:errors` 无错误 | 735.23 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `whiteboard-shortcut-settings-build-v1` | 成功，退出码 0 | 5251.51 ms | 257,925,120 B（245.98 MiB） | 5.250 s | 4 |
+| 2026-08-21 | `whiteboard-shortcut-settings-tests-v1` | 20/20，退出码 0 | 2839.33 ms | 343,470,080 B（327.56 MiB） | 4.922 s | 3 |
+| 2026-08-21 | `whiteboard-0.1.0-migration-build-v1` | 成功，退出码 0 | 2023.23 ms | 257,937,408 B（245.99 MiB） | 2.422 s | 2 |
+| 2026-08-21 | `life-panel-disable-legacy-whiteboard-before-id-migration-v1` | CLI 禁用旧 ID 成功 | 807.45 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-enable-whiteboard-0.1.0-new-id-v1` | 失败：当前 Obsidian 进程尚未重新扫描新插件目录 | 355.11 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-list-plugins-after-whiteboard-id-migration-v1` | 新 ID 尚未被当前进程发现，按预期暴露重启前置条件 | 381.27 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-obsidian-cli-help-id-migration-v1` | 成功，确认 CLI 提供 `restart` 命令 | 413.05 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-restart-after-whiteboard-id-migration-v1` | Obsidian 重启命令成功发出 | 897.75 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-list-plugins-after-restart-whiteboard-id-migration-v2` | 新 ID `obsidian-whiteboard-deduction-arc@0.1.0` 被发现，旧 ID仍作为已安装但未启用副本 | 526.36 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-enabled-plugins-whiteboard-id-migration-v1` | 新 ID 已启用，旧 ID未启用 | 382.45 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-whiteboard-0.1.0-id-migration-errors-v1` | 发现 5 条既有 `advanced-canvas` 错误；无本插件栈帧，不能归因于本插件 | 326.20 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-whiteboard-0.1.0-id-migration-state-v1` | 新插件版本 0.1.0；注册/清理/状态均为 2 | 346.90 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-whiteboard-0.1.0-canvas-window-inventory-v1` | 发现主窗口和独立窗口各有 `home.canvas` | 431.99 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-whiteboard-0.1.0-multi-window-positive-negative-probe-v1` | 主/副窗口普通 Z 各 3 次；Ctrl+S 增量 0；输入框 Z 增量 0 | 1011.64 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `whiteboard-context-negative-path-tests-v1` | 失败：回归测试调用了未定义的 `windowB`，产品构建不受影响 | 3135.61 ms | 339,357,696 B（323.64 MiB） | 5.500 s | 3 |
+| 2026-08-21 | `whiteboard-context-negative-path-build-v1` | 成功，退出码 0 | 2205.93 ms | 225,832,960 B（215.37 MiB） | 1.844 s | 2 |
+| 2026-08-21 | `whiteboard-context-negative-path-tests-v2` | 20/20，退出码 0 | 2716.63 ms | 213,938,176 B（204.03 MiB） | 1.844 s | 3 |
+| 2026-08-21 | `whiteboard-0.1.0-negative-context-final-build-v1` | 成功，退出码 0 | 1920.65 ms | 251,400,192 B（239.75 MiB） | 2.250 s | 2 |
+| 2026-08-21 | `life-panel-whiteboard-0.1.0-negative-context-final-reload-v1` | 新 ID 插件重载成功 | 598.27 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-whiteboard-0.1.0-multi-window-positive-negative-final-v2` | 主/副窗口普通 Z 各 3 次；Ctrl+S、输入框 Z、白板外 Z 增量均为 0 | 725.17 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-whiteboard-0.1.0-shortcut-settings-write-v1` | 运行态将 Zoom 临时改为 KeyP，写入插件 data.json 成功 | 326.94 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-whiteboard-0.1.0-shortcut-settings-reload-v1` | 重载成功 | 653.65 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-whiteboard-0.1.0-shortcut-settings-persist-v1` | 重载后仍读取 KeyP，配置持久化有效 | 328.07 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-whiteboard-0.1.0-shortcut-settings-restore-default-v1` | 已恢复默认 Zoom=KeyZ | 319.75 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-whiteboard-0.1.0-settings-tab-registration-v1` | 设置页已注册，类名 `CanvasShortcutSettingTab` | 330.35 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `whiteboard-0.1.0-release-candidate-tests-v1` | 20/20，退出码 0 | 2817.23 ms | 330,153,984 B（314.86 MiB） | 5.344 s | 3 |
+| 2026-08-21 | `whiteboard-0.1.0-release-candidate-build-v1` | 成功，退出码 0 | 1906.13 ms | 235,094,016 B（224.20 MiB） | 1.781 s | 2 |
+| 2026-08-21 | `life-panel-whiteboard-0.1.0-final-plugin-reload-errors-v1` | 新插件重载成功；CLI 错误缓冲仍仅含既有 `advanced-canvas` 5 条栈帧 | 323.25 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-whiteboard-0.1.0-final-installed-runtime-probe-v1` | 安装产物主/副窗口普通 Z 各 3 次；Ctrl+S 与白板外 Z 增量均为 0 | 625.77 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
 
 测量工具：[`scripts/measure-command.ps1`](../scripts/measure-command.ps1)。峰值工作集是 Windows 进程树内存峰值，不等同于整台机器的总内存占用；短于采样间隔的瞬时峰值可能被漏采。

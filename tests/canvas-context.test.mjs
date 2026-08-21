@@ -21,7 +21,7 @@ const {
 	isCanvasEditing,
 	isEditableTarget,
 } = context
-const { getCanvasShortcutId } = shortcuts
+const { getCanvasShortcutId, getCanvasShortcutConflicts, DEFAULT_CANVAS_SHORTCUT_SETTINGS, normalizeCanvasShortcutSettings } = shortcuts
 const { commitCanvasMutation } = mutations
 const { createCanvasElementId } = uuid
 const { normalizeCanvasElementId, validateCanvasElementId } = ids
@@ -60,6 +60,19 @@ test("快捷键匹配集中配置的默认组合", () => {
 	assert.equal(getCanvasShortcutId(keyboardEvent({ key: "!", code: "Digit1", shiftKey: true })), undefined)
 })
 
+test("快捷键配置会同步影响主/副窗口使用的同一匹配器", () => {
+	const settings = normalizeCanvasShortcutSettings({ ...DEFAULT_CANVAS_SHORTCUT_SETTINGS, zoom: "KeyP", cycleColor: "KeyV" })
+	assert.equal(getCanvasShortcutId(keyboardEvent({ code: "KeyP" }), settings), "zoom")
+	assert.equal(getCanvasShortcutId(keyboardEvent({ code: "KeyZ" }), settings), undefined)
+	assert.equal(getCanvasShortcutId(keyboardEvent({ code: "KeyV" }), settings), "cycleColor")
+})
+
+test("快捷键选择器拦截会造成无关路径误触发的重叠按键", () => {
+	assert.ok(getCanvasShortcutConflicts(DEFAULT_CANVAS_SHORTCUT_SETTINGS, "zoom", "KeyC").includes("cycleColor"))
+	assert.deepEqual(getCanvasShortcutConflicts(DEFAULT_CANVAS_SHORTCUT_SETTINGS, "compactLayout", "KeyE"), [])
+	assert.ok(getCanvasShortcutConflicts(DEFAULT_CANVAS_SHORTCUT_SETTINGS, "splitList", "KeyR").includes("createEdge"))
+})
+
 test("输入控件及其祖先编辑区域会被识别为编辑目标", () => {
 	const input = { tagName: "INPUT", getAttribute: () => null, parentElement: null, parentNode: null }
 	assert.equal(isEditableTarget(input), true)
@@ -87,6 +100,8 @@ test("输入框、编辑态、重复键和已处理事件都会阻止插件快�
 test("快捷键上下文来自事件所在的 Canvas，而不是 active view", () => {
 	const documentA = {}
 	const documentB = {}
+	const eventWindowB = {}
+	documentB.defaultView = eventWindowB
 	const targetA = { ownerDocument: documentA }
 	const targetB = { ownerDocument: documentB }
 	const rootA = { ownerDocument: documentA, contains: target => target === targetA }
@@ -110,7 +125,7 @@ test("快捷键上下文来自事件所在的 Canvas，而不是 active view", (
 	assert.equal(getCanvasFromEvent(app, { target: targetB, composedPath: () => [targetB] }), canvasB)
 	assert.equal(getCanvasFromEvent(app, { target: targetA, composedPath: () => [targetA] }), canvasA)
 	const outside = { ownerDocument: documentB }
-	assert.equal(getCanvasFromEvent(app, { target: outside, composedPath: () => [outside] }), undefined)
+	assert.equal(getCanvasFromEvent(app, { target: { ...outside, nodeType: 1 }, composedPath: () => [{ ...outside, nodeType: 1 }] }, eventWindowB), undefined)
 })
 
 test("窗口级键盘事件只回退到同一窗口的唯一 Canvas", () => {

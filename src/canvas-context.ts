@@ -32,6 +32,12 @@ export function getCanvasFromEvent(app: App, event: Event, eventWindow?: Window)
 
 	if (directCandidate) return directCandidate.canvas
 	if (!eventWindow) return undefined
+	// A real element outside every Canvas (for example a modal, command palette,
+	// or settings control) is an explicit negative context. Never fall back to
+	// the only Canvas in that window for such an event.
+	const hasOutsideElementTarget = targets.some(target =>
+		isElementTarget(target) && !candidates.some(candidate => isInsideContainer(candidate.container, target)))
+	if (hasOutsideElementTarget) return undefined
 
 	const windowCandidates = candidates.filter(candidate => candidate.container.ownerDocument.defaultView === eventWindow)
 	if (windowCandidates.length === 1) return windowCandidates[0].canvas
@@ -42,6 +48,10 @@ export function getCanvasFromEvent(app: App, event: Event, eventWindow?: Window)
 
 	const activeLeafView = app.workspace.activeLeaf?.view
 	return windowCandidates.find(candidate => candidate.view === activeLeafView)?.canvas
+}
+
+function isElementTarget(target: unknown): target is Element {
+	return typeof target === "object" && target !== null && (target as { nodeType?: unknown }).nodeType === 1
 }
 
 function getEventTargets(event: Event): unknown[] {
