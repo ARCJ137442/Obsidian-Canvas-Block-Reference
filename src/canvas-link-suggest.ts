@@ -6,8 +6,9 @@
 
 import { App, Editor, EditorPosition, EditorSuggest, EditorSuggestContext, EditorSuggestTriggerInfo, ItemView, MetadataCache, OpenViewState, Plugin, prepareFuzzySearch, TFile, ViewState, WorkspaceLeaf } from 'obsidian';
 import { BlockLinkInfo, BuiltInSuggest, BuiltInSuggestItem } from './typings/suggest';
-import { CanvasNode } from 'obsidian/canvas';
+import { CanvasNode, CanvasView } from 'obsidian/canvas';
 import { getCanvasElementTitle, getFileLink } from './utils';
+import { parseCanvasNodes } from './canvas-link-suggest-data';
 
 // /**
 //  * 实际的「文件输入建议」功能
@@ -59,6 +60,8 @@ const CANVAS_EXTENSION = '.canvas'
 const END_QUERY_HEADING = '#'
 const END_QUERY_BLOCK = END_QUERY_HEADING + '^'
 
+const canvasNodesCache = new Map<string, { mtime: number, nodes: CanvasNode[] }>()
+
 
 /** 获取链接的模式，如`[[file#title]]`、`[[file#^block]]` */
 function tryGetLinkMode(query: string): 'heading' | 'block' | null {
@@ -104,12 +107,26 @@ async function tryGetCanvasNodes(app: App, context: EditorSuggestContext): Promi
 
 /** 通过读取文件的方式，获取白板中的所有节点 */
 async function getNodesFromCanvas(app: App, canvasFile: TFile) {
-	// Convert json string to object
-	const canvasFileContent = await app.vault.cachedRead(canvasFile);
-	const canvasFileData = JSON.parse(canvasFileContent);
+	// 白板已打开时优先使用内存中的 Canvas，避免读取磁盘缓存看不到未保存变更。
+	for (const leaf of app.workspace.getLeavesOfType('canvas')) {
+		const view = leaf.view as CanvasView | null
+		if (view?.file?.path !== canvasFile.path || !view.canvas) continue
+		return [...view.canvas.nodes.values()]
+	}
 
-	// return the nodes as object
-	return canvasFileData.nodes;
+	// 未打开的白板才回退到 Vault 缓存；按文件 mtime 缓存解析结果，避免每次输入都 JSON.parse。
+	const cached = canvasNodesCache.get(canvasFile.path)
+	if (cached?.mtime === canvasFile.stat.mtime) return cached.nodes
+
+	try {
+		const canvasFileContent = await app.vault.cachedRead(canvasFile)
+		const nodes = parseCanvasNodes(canvasFileContent) as CanvasNode[]
+		canvasNodesCache.set(canvasFile.path, { mtime: canvasFile.stat.mtime, nodes })
+		return nodes
+	} catch (error) {
+		console.warn(`[CanvasReferencePlugin] unable to read canvas file: ${canvasFile.path}`, error)
+		return []
+	}
 }
 
 /** 根据白板数据生成相关建议 */

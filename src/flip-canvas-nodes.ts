@@ -4,8 +4,10 @@
 
 import { Canvas, CanvasEdge, CanvasElementSide, CanvasNode } from 'obsidian/canvas';
 import { App, MenuItem } from 'obsidian';
-import { getActiveCanvasView, getEdgesBetweenNodes, registerCanvasMenuItem, selectedNodes, setNodePosition, updateEdgeData } from './utils';
+import { getActiveCanvasView, getEdgesBetweenNodes, isCanvasEdge, registerCanvasMenuItem, selectedNodes, setNodePosition, updateEdgeData } from './utils';
 import { EN_US, I18nText, i18nText, ZH_CN } from './i18n';
+import { commitCanvasMutation } from './canvas-mutations';
+import { collectEdgesForFlip } from './canvas-flip';
 
 enum FlipMode {
 	Horizontal = "h",
@@ -16,15 +18,14 @@ enum FlipMode {
  * API：横向翻转白板元素位置
  */
 function flipCanvasElements(canvas: Canvas, nodes: Set<CanvasNode>, mode: FlipMode): void {
-	// const edges = getEdgesBetweenNodes(canvas, nodes)
+	if (nodes.size <= 0) return
 	const center = calculateCenter(nodes)
-	const edges = new Set<CanvasEdge>()
-	for (const node of nodes) {
-		flip1Node(canvas, center, node, mode)
-		for (const edge of new Set(canvas.getEdgesForNode(node)))
-			edges.add(edge)
-	}
-	for (const edge of edges) flip1Edge(canvas, edge, mode)
+	const directlySelectedEdges = [...canvas.selection].filter(isCanvasEdge)
+	const edges = collectEdgesForFlip(directlySelectedEdges, getEdgesBetweenNodes(canvas, nodes))
+	commitCanvasMutation(canvas, () => {
+		for (const node of nodes) flip1Node(center, node, mode)
+		for (const edge of edges) flip1Edge(edge, mode)
+	})
 }
 
 function calculateCenter(nodes: Set<CanvasNode>): [number, number] {
@@ -53,7 +54,7 @@ function mirrorY(y: number, centerY: number) {
 	return centerY - (y - centerY)
 }
 
-function flip1Node(canvas: Canvas, center: [number, number], node: CanvasNode, mode: FlipMode) {
+function flip1Node(center: [number, number], node: CanvasNode, mode: FlipMode) {
 	// 获取上下左右边界
 	const { minX, minY, maxX, maxY } = node.bbox
 	const [centerX, centerY] = center
@@ -88,7 +89,7 @@ function flipSide(side: CanvasElementSide, mode: FlipMode) {
 	}
 }
 
-function flip1Edge(canvas: Canvas, edge: CanvasEdge, mode: FlipMode) {
+function flip1Edge(edge: CanvasEdge, mode: FlipMode) {
 	const { fromSide, toSide } = edge.getData()
 	const newFromSide = fromSide ? flipSide(fromSide, mode) : fromSide
 	const newToSide = toSide ? flipSide(toSide, mode) : toSide

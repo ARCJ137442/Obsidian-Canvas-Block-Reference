@@ -10,6 +10,8 @@ import { App, MenuItem, Modal, Notice, Setting, TextComponent } from "obsidian";
 import { Canvas, CanvasEdge, CanvasEdgeData, CanvasElement, CanvasElementData } from "obsidian/canvas";
 import { getActiveCanvasView, isCanvasEdge, isCanvasNode, registerCanvasMenuItem } from "src/utils";
 import { i18nText } from "./i18n";
+import { commitCanvasMutation } from "./canvas-mutations";
+import { normalizeCanvasElementId, validateCanvasElementId } from "./canvas-id";
 
 /**
  * 注册事件：右键菜单复制选区内容链接
@@ -126,15 +128,15 @@ export function changeElementIdWithUI<D extends CanvasElementData>(element: Canv
 				}))
 				.setCta()
 				.onClick(() => {
-					// 关闭弹窗
-					this.close();
 					const oldID = element.id
-					// 改变元素的id
-					changeElementId<D>(element, this.newID)
+					const newID = normalizeCanvasElementId(this.newID)
+					if (!changeElementId<D>(element, newID)) return
+					// 校验通过后关闭弹窗
+					this.close();
 					// 弹出通知
 					new Notice(i18nText({
-						[EN_US]: `Element ID changed from "${oldID}" to "${this.newID}"`,
-						[ZH_CN]: `元素ID从"${oldID}"改为"${this.newID}"`,
+						[EN_US]: `Element ID changed from "${oldID}" to "${newID}"`,
+						[ZH_CN]: `元素ID从"${oldID}"改为"${newID}"`,
 					}))
 				})
 			);
@@ -154,10 +156,30 @@ export function changeElementIdWithUI<D extends CanvasElementData>(element: Canv
  * * 后续可能包括其它「后处理」逻辑
  */
 export function changeElementId<D extends CanvasElementData>(element: CanvasElement<D>, newId: string) {
-	// 改变元素的id
-	_changeElementId<D>(element, newId)
-	// TODO: 其它后处理，包括更新链接
-	element.canvas.requestSave()
+	const normalizedId = normalizeCanvasElementId(newId)
+	const validationError = validateCanvasElementId(
+		normalizedId,
+		element.id,
+		[...element.canvas.nodes.keys(), ...element.canvas.edges.keys()],
+	)
+	if (validationError === "empty") {
+		new Notice(i18nText({
+			[EN_US]: "Element ID cannot be empty",
+			[ZH_CN]: "元素ID不能为空",
+		}))
+		return false
+	}
+	if (validationError === "duplicate") {
+		new Notice(i18nText({
+			[EN_US]: `Element ID already exists: "${normalizedId}"`,
+			[ZH_CN]: `元素ID已存在："${normalizedId}"`,
+		}))
+		return false
+	}
+	if (normalizedId === element.id) return true
+
+	// 改变元素的id，并把保存/历史请求纳入统一事务
+	return commitCanvasMutation(element.canvas, () => _changeElementId<D>(element, normalizedId), { refresh: false })
 }
 
 /**
@@ -175,7 +197,7 @@ export function _changeElementId<D extends CanvasElementData>(element: CanvasEle
 	)
 	if (!elementMap) {
 		console.warn(`[CanvasReferencePlugin] changeElementId: unknown element type`, element)
-		return
+		return false
 	}
 
 	// 在相应映射中修改id
@@ -184,4 +206,5 @@ export function _changeElementId<D extends CanvasElementData>(element: CanvasEle
 
 	// 更改id
 	element.id = newId
+	return true
 }

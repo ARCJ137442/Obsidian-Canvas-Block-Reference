@@ -2,11 +2,13 @@
  * 存放白板中只用键盘事件就能生效的功能
  */
 
-import { Canvas, CanvasElementSide, CanvasNode, ParamCanvasCreateNodePosition } from "obsidian/canvas";
+import { Canvas, CanvasElementSide, CanvasNode } from "obsidian/canvas";
 import { addEdge, enumerate, isCanvasEdge, isCanvasNode, isCanvasTextNode, nLines, panToElements, selectedNodes, setNodePosition, sum, updateNodeData } from "./utils";
 import { Notice } from "obsidian";
 import { packRectangles } from "./brickLayout";
 import { getCanvasShortcutId } from "./canvas-shortcuts";
+import { commitCanvasMutation } from "./canvas-mutations";
+import { createCanvasTextNode } from "./canvas-node-operations";
 
 // 独立出的功能：白板中键盘按下的功能
 export function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: string]: boolean }, canvas: Canvas): boolean {
@@ -44,6 +46,8 @@ export function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: string]: b
 	if (code === 'KeyC' && !ctrlKey && !altKey && !metaKey) {
 		const AVAILABLE_COLORS = ['', '1', '2', '3', '4', '5', '6', '#000000', '#ffffff']
 		const N_COLORS = AVAILABLE_COLORS.length
+		if (canvas.selection.size <= 0) return true
+		commitCanvasMutation(canvas, () => {
 		for (const element of canvas.selection.values()) {
 			// 正在编辑的元素不修改颜色
 			if (isCanvasNode(element) && element.isEditing) continue
@@ -60,20 +64,22 @@ export function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: string]: b
 				element.setColor(newColor)
 			}
 		}
+		}, { refresh: false })
 	}
 	// 选中+WASD：在节点之间移动选择
 	while (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(code) && !ctrlKey && !altKey && !metaKey) {
 		// E「Expand」：组合键+WASD 创建一个文本节点，并进行延展
 		if (isKeyDown['KeyE']) {
-			const newNodes = []
+			const newNodes: CanvasNode[] = []
 
 			const node: CanvasNode = canvas.selection.values().next().value // ! 📌【2025-08-09 14:40:23】还是只选中一个
 			if (!node) break
 
-			const selected = [...selectedNodes(canvas)]
+			const selected = [...selectedNodes(canvas)].filter(node => 'text' in node)
+			if (selected.length <= 0) break
+			commitCanvasMutation(canvas, () => {
 			for (const node of selected) {
 				// 目前仅针对文本节点
-				if (!('text' in node)) continue
 
 				// 计算要偏移的位置、要连接的两侧
 				let dx, dy
@@ -107,19 +113,14 @@ export function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: string]: b
 				}
 
 				// 仿制一个文本节点
-				const newNode = canvas.createTextNode({
-					pos: { x: node.x + dx, y: node.y + dy },
-					save: true, focus: false,
-					size: { width: node.width, height: node.height },
-					text: (node as any)?.text ?? ''
+				const newNode = createCanvasTextNode(canvas, {
+					x: node.x + dx,
+					y: node.y + dy,
+					width: node.width,
+					height: node.height,
+					text: (node as any)?.text ?? '',
+					color: node.color,
 				})
-				// * ℹ️需要更新碰撞箱：刚创建的节点没有
-				newNode.bbox = { minX: newNode.x, minY: newNode.y, maxX: newNode.x + newNode.width, maxY: newNode.y + newNode.height }
-
-				canvas.addNode(newNode)
-				canvas.requestSave()
-
-				newNode.color = node.color
 				// updateNodeData(newNode, { // ! ⚠️【2025-08-09 14:53:19】必须放在addNode后边，不然没有id，也会表现得像是「不在白板中」
 				// 	// 除了id、x、y、width、height、text的字段
 				// 	x: newNode.x,
@@ -132,13 +133,12 @@ export function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: string]: b
 
 				// ! ❌【2025-09-18 10:44:32】不自动选中并编辑，以便连续创建节点（可用Enter进入编辑状态）
 
-				if (!newNode) continue
-
 				// 添加连边
 				addEdge(canvas, node, newNode, fromSide, toSide, false)
 
 				newNodes.push(newNode)
 			}
+			}, { refresh: false })
 			// 选中所有新增的节点
 			if (newNodes.length <= 0) break
 
@@ -154,12 +154,12 @@ export function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: string]: b
 		}
 		// R「Resize」：调整选中节点的大小
 		if (isKeyDown['KeyR']) {
-			const node: CanvasNode = selectedNodes(canvas).next().value // ! 📌【2025-08-09 14:40:23】还是只选中一个
+			const selected = [...selectedNodes(canvas)].filter(node => 'text' in node)
+			const node: CanvasNode = selected[0] // ! 📌【2025-08-09 14:40:23】还是只选中一个
 			if (!node) break
 
-			for (const node of selectedNodes(canvas)) {
-				// 目前仅针对文本节点
-				if (!('text' in node)) break
+			commitCanvasMutation(canvas, () => {
+			for (const node of selected) {
 
 				// 计算要偏移的位置、要连接的两侧
 				let dx, dy
@@ -192,11 +192,12 @@ export function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: string]: b
 
 				updateNodeData(node, { width, height })
 			}
+			}, { refresh: false })
 
 			canvas.requestFrame()
 
 			// 跟随选中：将画布平移到所有选中的节点处
-			panToElements(canvas, selectedNodes(canvas))
+			panToElements(canvas, selected)
 
 			break
 		}
@@ -224,10 +225,10 @@ export function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: string]: b
 
 		const { minX, minY, maxX, maxY } = canvas.getViewportBBox()
 		// 仿制一个文本节点，使用默认样式
-		const newNode = createTextNode(canvas, {
+		const newNode = commitCanvasMutation(canvas, () => createCanvasTextNode(canvas, {
 			x: (minX + maxX) / 2,
 			y: (minY + maxY) / 2,
-		});
+		}), { refresh: true });
 
 		// 切换到选中状态
 		setTimeout(() => {
@@ -274,19 +275,36 @@ export function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: string]: b
 		const node2 = selected.next().value
 		if (!node1 || !node2) break
 		// * 🚧目前不整那么多花里胡哨的连边：❌两边之间自适应→可以 Alt+Shift+A 调整，❌方向反了→可以反转连边
-		addEdge(canvas, node1, node2, 'right', 'left', false)
+		commitCanvasMutation(canvas, () => {
+			addEdge(canvas, node1, node2, 'right', 'left', false)
+		})
 		break
 	}
 	// Shift+Alt+Ctrl+E：紧凑布局
 	if (code === 'KeyE' && shiftKey && altKey && ctrlKey && !metaKey) {
-		const sxy = (n: CanvasNode, x: number, y: number) => setNodePosition(n, x, y)
 		const ns = Array.from(canvas.nodes.values())
-		const w = ns.map(x => x.width), h = ns.map(x => x.height)
-		const { x, y } = packRectangles(w, h)
-		for (let i = 0; i < x.length; i++) {
-			sxy(ns[i], x[i], y[i])
+		if (ns.length <= 0) {
+			new Notice('紧凑布局：白板中没有节点')
+		} else {
+			const progressNotice = new Notice(`紧凑布局：正在处理 0/${ns.length} 个节点`, 0)
+			try {
+				const w = ns.map(node => node.width), h = ns.map(node => node.height)
+				const { x, y } = packRectangles(w, h)
+				commitCanvasMutation(canvas, () => {
+					for (let i = 0; i < x.length; i++) {
+						setNodePosition(ns[i], x[i], y[i])
+						if ((i + 1) % 100 === 0 || i + 1 === x.length)
+							progressNotice.setMessage(`紧凑布局：正在处理 ${i + 1}/${ns.length} 个节点`)
+					}
+				})
+				progressNotice.hide()
+				new Notice(`紧凑布局完成：${ns.length} 个节点`)
+			} catch (error) {
+				progressNotice.hide()
+				console.error('[CanvasReferencePlugin] compact layout failed', error)
+				new Notice('紧凑布局失败，请查看开发者控制台')
+			}
 		}
-		new Notice('触发：紧凑布局')
 	}
 	// Y/Shift+Y: CTDP快速计数
 	// * 📅2025-08-20
@@ -295,6 +313,7 @@ export function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: string]: b
 	// * Shift+Y：计数清零
 	if (code === 'KeyY' && !ctrlKey && !altKey && !metaKey) {
 		// 遍历所有选中的文本节点
+		commitCanvasMutation(canvas, () => {
 		for (const node of selectedNodes(canvas)) {
 			if (!isCanvasTextNode(node)) continue
 			let text = node.text
@@ -326,9 +345,11 @@ export function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: string]: b
 			}
 			new Notice(message)
 		}
+		}, { refresh: false })
 	}
 	// 数字键Digit，小键盘Numpad | ❗Alt组合键被占用了
 	if (code.startsWith('Digit') && !shiftKey && !ctrlKey /* && altKey */ && !metaKey) {
+		commitCanvasMutation(canvas, () => {
 		for (const node of selectedNodes(canvas)) {
 			if (!isCanvasTextNode(node)) continue
 			let n: number // 拆分 Digit
@@ -340,9 +361,11 @@ export function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: string]: b
 			const newText = newMdTitle + rest
 			node.setText(newText)
 		}
+		}, { refresh: false })
 	}
 	// 大写K → 拆分Markdown无序列表
 	if (code === 'KeyK' && shiftKey && !ctrlKey && !altKey && !metaKey) {
+		commitCanvasMutation(canvas, () => {
 		for (const node of selectedNodes(canvas)) {
 			if (!isCanvasTextNode(node)) continue
 			// 先拆分笔记内容
@@ -386,7 +409,7 @@ export function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: string]: b
 			let nowTotalLines = selfLines
 			for (const { text, lines } of subLines) {
 				// 创建文本节点
-				createTextNode(canvas, {
+				createCanvasTextNode(canvas, {
 					text,
 					position: "top",
 					x: (node.x + node.width / 2),
@@ -412,7 +435,7 @@ export function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: string]: b
 			});
 		}
 
-		canvas.requestPushHistory()
+		}, { refresh: false })
 	}
 	return true
 }
@@ -472,42 +495,6 @@ function transportedSelectedNodes(canvas: Canvas, rightDirectionDeg: number) {
 
 	return transportedSelectedNodes;
 }
-
-/**
- * 直接创建文本节点
- */
-function createTextNode(canvas: Canvas, {
-	x, y,
-	position = 'center',
-	width = 260, height = 60, // Obsidian默认长宽
-	text = '',
-	color = '0',
-}: {
-	x: number,
-	y: number,
-	position?: ParamCanvasCreateNodePosition,
-	width?: number,
-	height?: number,
-	text?: string,
-	color?: string,
-}) {
-	const newNode = canvas.createTextNode({
-		pos: { x, y },
-		position,
-		save: true, focus: false,
-		size: { width, height },
-		text,
-	});
-	// * ℹ️需要更新碰撞箱：刚创建的节点没有
-	newNode.bbox = { minX: newNode.x, minY: newNode.y, maxX: newNode.x + newNode.width, maxY: newNode.y + newNode.height };
-	newNode.color = color;
-
-	canvas.addNode(newNode);
-	canvas.requestSave();
-
-	return newNode;
-}
-
 
 /**
  * 拆分文本节点的标题和内容

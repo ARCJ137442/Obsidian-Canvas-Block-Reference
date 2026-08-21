@@ -8,8 +8,9 @@
 import { ZH_CN, EN_US } from './i18n';
 import { App, MenuItem } from "obsidian";
 import { Canvas, CanvasEdge, CanvasEdgeData } from "obsidian/canvas";
-import { filteredDatasByKey, filterRepeatedDatasByKey, getActiveCanvasView, registerCanvasMenuItem, selectedEdgesIncludesBetweens, updateEdgeData } from "src/utils";
+import { filteredDatasByKey, getActiveCanvasView, registerCanvasMenuItem, selectedEdgesIncludesBetweens, updateEdgeData } from "src/utils";
 import { i18nText } from "./i18n";
+import { commitCanvasMutation } from "./canvas-mutations";
 
 
 /**
@@ -27,14 +28,7 @@ export const EVENT_reverseEdges = registerCanvasMenuItem({
 		icon: "repeat", // https://lucide.dev/icons/repeat
 		section: "action",
 		onClick: (canvas: Canvas, _item: MenuItem, _event: KeyboardEvent | MouseEvent) => {
-			/** 标记哪些边被转换过 */
-			const turned: { [k: string]: boolean } = {}
-			for (const e of selectedEdgesIncludesBetweens(canvas)) {
-				// 已标记的边不再处理
-				if (e.id in turned) return
-				turned[e.id] = true
-				reverseEdge(e)
-			}
+			reverseSelectedEdges(canvas)
 		}
 	}
 })
@@ -59,10 +53,7 @@ export const CMD_reverseSelectedCanvasEdges = (app: App) => ({
 		const { canvas } = result
 
 		// 获取边并反转
-		/** 标记哪些边被转换过 */
-		for (const e of filterRepeatedDatasByKey(selectedEdgesIncludesBetweens(canvas), (e: CanvasEdge) => e.id))
-			// 已标记的边不再处理
-			reverseEdge(e)
+		reverseSelectedEdges(canvas)
 
 		// This command will only show up in Command Palette when the check function returns true
 		return true;
@@ -72,10 +63,12 @@ export const CMD_reverseSelectedCanvasEdges = (app: App) => ({
 
 /** 反转选取内的边对象 */
 export function reverseSelectedEdges(canvas: Canvas): void {
-	for (const e of filteredDatasByKey(selectedEdgesIncludesBetweens(canvas), e => e.id))
-		// 已标记的边不再处理
-		// 遍历选择的边
-		reverseEdge(e)
+	commitCanvasMutation(canvas, () => {
+		for (const e of filteredDatasByKey(selectedEdgesIncludesBetweens(canvas), e => e.id))
+			// 已标记的边不再处理
+			// 遍历选择的边
+			reverseEdge(e)
+	}, { refresh: false })
 }
 
 /** 反转一个边对象 */

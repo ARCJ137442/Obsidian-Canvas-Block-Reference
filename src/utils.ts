@@ -1,6 +1,6 @@
-import { randomUUID } from "crypto";
 import { MenuItem, App, FileView, ItemView, TFile, Menu, Notice, Side } from "obsidian";
 import { BoundedBox, Canvas, CanvasEdge, CanvasEdgeData, CanvasElement, CanvasElementSide, CanvasNode, CanvasNodeData, CanvasTextNode, CanvasView } from "obsidian/canvas";
+import { addCanvasEdge } from "./canvas-edge-operations";
 
 /** 用于注册事件的参数类型 */
 export type ParamEventRegister = {
@@ -342,44 +342,11 @@ export function panToElements(canvas: Canvas, nodes: Iterable<CanvasElement>): v
 }
 
 /**
- * 添加连边而不刷新
+ * 添加连边。数据变更后由外层事务统一保存。
  * 参考自 https://github.com/Quorafind/Obsidian-Canvas-MindMap/blob/b26802cd164c47b84172fb35b9dd0a0806b1c377/src/utils.ts#L107
  */
 export function addEdge(canvas: Canvas, from: CanvasNode, to: CanvasNode, fromSide: CanvasElementSide, toSide: CanvasElementSide, refresh: boolean = true) {
-	if (!canvas) return;
-
-	const data = canvas.getData();
-	if (!data) return;
-
-	const id = randomUUID();
-	// canvas.addEdge({
-	// 	id,
-	// 	"fromNode": from,
-	// 	"fromSide": fromSide,
-	// 	"toNode": to,
-	// 	"toSide": toSide,
-	// })
-	canvas.importData({
-		"edges": [
-			...data.edges,
-			{
-				"id": id,
-				"fromNode": from.id,
-				"fromSide": fromSide,
-				"toNode": to.id,
-				"toSide": toSide,
-			}
-		],
-		"nodes": data.nodes,
-	});
-	// const edge = canvas.edges.get(id)
-	// if (!edge) return;
-	// console.warn(edge)
-	// canvas.addEdge(edge)
-
-	if (refresh) canvas.requestFrame()
-
-	return id
+	return addCanvasEdge(canvas, from, to, fromSide, toSide, refresh)
 };
 
 /**

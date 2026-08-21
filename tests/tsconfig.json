@@ -12,6 +12,15 @@
 	"include": [
 		"../src/canvas-context.ts",
 		"../src/canvas-shortcuts.ts",
+		"../src/canvas-mutations.ts",
+		"../src/uuid.ts",
+		"../src/canvas-id.ts",
+		"../src/clipboard.ts",
+		"../src/canvas-flip.ts",
+		"../src/canvas-link-suggest-data.ts",
+		"../src/canvas-node-operations.ts",
+		"../src/canvas-edge-operations.ts",
+		"../src/brickLayout.ts",
 		"../src/typings/canvas.ts"
 	]
 }

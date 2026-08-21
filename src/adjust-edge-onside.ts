@@ -10,6 +10,7 @@ import { App, MenuItem } from "obsidian";
 import { BoundedBox, Canvas, CanvasEdge, CanvasEdgeData, NodeSide } from "obsidian/canvas";
 import { filteredDatasByKey, getActiveCanvasView, getEdgesBetweenNodes, getNodesAroundEdges, registerCanvasMenuItem, selectedEdges, selectedEdgesIncludesBetweens, selectedNodes, updateEdgeData } from "src/utils";
 import { i18nText } from "./i18n";
+import { commitCanvasMutation } from "./canvas-mutations";
 
 /** 统一的功能名称（命令/右键菜单） */
 const NAME_DICT = {
@@ -107,10 +108,12 @@ export function toggleNodeEdgeSelect(canvas: Canvas): void {
 }
 
 export function adjustSelectedEdgesOnside(canvas: Canvas): void {
-	for (const e of filteredDatasByKey(selectedEdgesIncludesBetweens(canvas), e => e.id))
-		// 已标记的边不再处理
-		// 遍历选择的边
-		adjustEdgeOnside(e)
+	commitCanvasMutation(canvas, () => {
+		for (const e of filteredDatasByKey(selectedEdgesIncludesBetweens(canvas), e => e.id))
+			// 已标记的边不再处理
+			// 遍历选择的边
+			adjustEdgeOnside(e)
+	}, { refresh: false })
 }
 
 /** 反转一个边对象 */

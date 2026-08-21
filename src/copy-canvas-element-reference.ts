@@ -11,6 +11,7 @@ import { Canvas, CanvasElement, CanvasView } from 'obsidian/canvas';
 import { App, MenuItem, Notice, TFile } from 'obsidian';
 import { getActiveCanvasView, getCanvasTitleOneLine, getFileLink, isCanvasNode, mdLinkEscape, ParamEventRegister, registerCanvasMenuItem } from './utils';
 import { EN_US, i18nText, ZH_CN } from './i18n';
+import { writeTextToClipboard } from './clipboard';
 
 /**
  * 注册事件：右键菜单复制选区内容链接
@@ -29,7 +30,7 @@ export const EVENT_copyCanvasCardReferenceMenu: ParamEventRegister = registerCan
 		onClick: (canvas: Canvas, _item: MenuItem, _event: KeyboardEvent | MouseEvent) => {
 			// Copy card reference
 			const file = (canvas.view as CanvasView).file
-			copyCanvasCardReference(canvas, file, canvas.app);
+		void copyCanvasCardReference(canvas, file, canvas.app);
 		}
 	}
 })
@@ -52,7 +53,7 @@ export const CMD_copyCanvasElementReference = (app: App) => ({
 
 		// Copy card reference
 		const { canvas, file } = result
-		copyCanvasCardReference(canvas, file, app);
+		void copyCanvasCardReference(canvas, file, app);
 
 		// This command will only show up in Command Palette when the check function returns true
 		return true;
@@ -66,7 +67,7 @@ export const CMD_copyCanvasElementReference = (app: App) => ({
  *   * ✨【2025-04-20 16:23:55】现对多个有用，只需一个复制一行
  * * 💡复制时通知（类似Git的扩展→可以去找）
  */
-function copyCanvasCardReference(canvas: Canvas, file: TFile | null, app?: App): void {
+async function copyCanvasCardReference(canvas: Canvas, file: TFile | null, app?: App): Promise<void> {
 	// Verify the file
 	if (!file) {
 		console.error("copyCanvasCardReference: can't get file", file);
@@ -102,7 +103,14 @@ function copyCanvasCardReference(canvas: Canvas, file: TFile | null, app?: App):
 	}
 
 	// Copy to clipboard
-	copyToClipboard(text.slice(1)); // 移除开头的换行符
+	const copied = await writeTextToClipboard(text.slice(1), globalThis.navigator?.clipboard); // 移除开头的换行符
+	if (!copied) {
+		new Notice(i18nText({
+			[EN_US]: "Copy failed. Please check clipboard permission.",
+			[ZH_CN]: "复制失败，请检查剪贴板权限。",
+		}))
+		return
+	}
 
 	// If copied, notice
 	new Notice(generateNoticeOnCopied(selection, path));
@@ -112,11 +120,6 @@ function copyCanvasCardReference(canvas: Canvas, file: TFile | null, app?: App):
 const generateLinkFromCanvasNode = (path: string, element: CanvasElement, title?: string) => (
 	title ? `[[${path}#^${element.id}|${title}]]` : `[[${path}#^${element.id}]]`
 )
-
-/** 🎯封装逻辑，以便日后更改 */
-function copyToClipboard(text: string) {
-	navigator.clipboard.writeText(text);
-}
 
 /** 标题预览最长的长度（字符） */
 const MAX_TITLE_PREVIEW_LENGTH = 10
