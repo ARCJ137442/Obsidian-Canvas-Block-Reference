@@ -109,5 +109,17 @@
 | 2026-08-21 | `life-panel-whiteboard-configurable-shortcut-families-final-errors-v1` | 仍只有 `plugin:advanced-canvas` 的既有错误；无本插件栈帧 | 383.04 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
 | 2026-08-21 | `whiteboard-0.2.0-release-build-v1` | 成功，退出码 0 | 1723.00 ms | 70,553,600 B（67.29 MiB） | 0.453 s | 1 |
 | 2026-08-21 | `whiteboard-0.2.0-release-tests-v1` | 22/22，退出码 0 | 2545.60 ms | 293,519,360 B（279.92 MiB） | 3.188 s | 2 |
+| 2026-08-21 | `life-series-cli-vault-discovery-v1` | 发现目标 Vault `life-series` | 360.25 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-series-cli-help-v1` | 探针分隔符错误，未影响 Vault 或插件状态 | 229.47 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-series-cli-help-v2` | 确认 eval、vault、plugin:reload、dev:errors 参数格式 | 504.55 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-series-cli-eval-target-v1` | CLI eval 成功确认目标 Vault 为 `life-series` | 296.55 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-series-cli-plugin-help-v1` | 确认插件启用/禁用/重载和错误查询命令 | 400.18 ms | 0 B（短 CLI 进程，可能漏采） | 0.078 s | 1 |
+| 2026-08-21 | `life-series-disable-old-whiteboard-pan-v1` | 旧白板和旧 Pan 均禁用成功 | 576.54 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-series-enable-reload-both-plugins-v1` | 部分失败：新白板目录尚未进入运行时索引；Pan 启用/重载成功 | 644.88 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-series-plugin-index-after-copy-v1` | CLI 插件索引已发现新白板 ID | 245.80 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-series-enable-reload-whiteboard-after-index-v1` | 新白板启用和重载成功 | 371.67 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-series-final-plugin-state-v1` | 白板 0.2.0、Pan 1.0.7 均启用；快捷键与 Pan 配置读取成功 | 357.47 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-series-clear-errors-before-final-v1` | 清空目标 Vault 既有 2 条错误 | 269.38 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-series-final-reload-errors-v1` | 两插件最终重载成功，`No errors captured` | 635.00 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
 
 测量工具：[`scripts/measure-command.ps1`](../scripts/measure-command.ps1)。峰值工作集是 Windows 进程树内存峰值，不等同于整台机器的总内存占用；短于采样间隔的瞬时峰值可能被漏采。
