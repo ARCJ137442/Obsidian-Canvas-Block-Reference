@@ -64,8 +64,9 @@
 
 ```text
 npm install
-npm test
-npm run build
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/measure-command.ps1 -Label "whiteboard-tests" -Command "npm test"
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/measure-command.ps1 -Label "whiteboard-build" -Command "npm run build"
 ```
 
 测试资源记录见 [`tests/resource-usage.md`](tests/resource-usage.md)。
+开发规范与交接文档见 [`AGENTS.md`](AGENTS.md) 和 [`agents/`](agents/)。
