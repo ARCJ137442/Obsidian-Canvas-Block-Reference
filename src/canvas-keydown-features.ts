@@ -10,8 +10,17 @@ import { getCanvasShortcutId } from "./canvas-shortcuts";
 import { commitCanvasMutation } from "./canvas-mutations";
 import { createCanvasTextNode } from "./canvas-node-operations";
 
+export interface CanvasKeyboardActions {
+	startContinuousZoom?: (canvas: Canvas, shiftKey: boolean) => void;
+}
+
 // 独立出的功能：白板中键盘按下的功能
-export function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: string]: boolean }, canvas: Canvas): boolean {
+export function onCanvasKeyDown(
+	e: KeyboardEvent,
+	isKeyDown: { [code: string]: boolean },
+	canvas: Canvas,
+	actions: CanvasKeyboardActions = {},
+): boolean {
 	if (!getCanvasShortcutId(e)) return false
 
 	const {
@@ -266,8 +275,10 @@ export function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: string]: b
 			if (closestNode) canvas.select(closestNode)
 		}
 	// Z「Zoom」：单按 放大，Shift 缩小
-	if (code === 'KeyZ' && !ctrlKey && !altKey && !metaKey)
-		canvas.zoomBy(shiftKey ? -0.1 : 0.1)
+	if (code === 'KeyZ' && !ctrlKey && !altKey && !metaKey) {
+		if (actions.startContinuousZoom) actions.startContinuousZoom(canvas, shiftKey)
+		else canvas.zoomBy(shiftKey ? -0.1 : 0.1)
+	}
 	// Shift+R：在俩节点之间随机添加连边
 	while (code === 'KeyR' && shiftKey && !ctrlKey && !altKey && !metaKey) {
 		const selected = selectedNodes(canvas)

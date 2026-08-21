@@ -20,6 +20,8 @@
 		"../src/canvas-link-suggest-data.ts",
 		"../src/canvas-node-operations.ts",
 		"../src/canvas-edge-operations.ts",
+		"../src/canvas-zoom.ts",
+		"../src/keyboard-event-guard.ts",
 		"../src/brickLayout.ts",
 		"../src/typings/canvas.ts"
 	]

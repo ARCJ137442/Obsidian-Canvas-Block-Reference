@@ -12,6 +12,10 @@ import { packRectangles } from './brickLayout';
 import { CMD_flipCanvasElementsH, CMD_flipCanvasElementsV, EVENT_flipCanvasElementsH, EVENT_flipCanvasElementsV } from './flip-canvas-nodes';
 import { onCanvasKeyDown } from './canvas-keydown-features';
 import { canHandleCanvasKeyboardEvent, getCanvasFromEvent } from './canvas-context';
+import { createContinuousZoomController } from './canvas-zoom';
+import type { ContinuousZoomController } from './canvas-zoom';
+import { KeyboardEventGuard } from './keyboard-event-guard';
+import type { Canvas } from 'obsidian/canvas';
 // import { CMD_selectAllEdgesInCanvas } from './commands/select-all-edges';
 // ! ✅「选择所有连边」的功能，在AdvancedCanvas中有了
 
@@ -35,6 +39,8 @@ export default class CanvasReferencePlugin extends Plugin {
 
 	private keyEventWindows = new WeakSet<Window>()
 	private keyDownStates = new WeakMap<Window, { [code: string]: boolean }>()
+	private zoomControllers = new Map<Window, ContinuousZoomController>()
+	private handledKeyboardEvents = new KeyboardEventGuard()
 
 	private registerCanvasKeyListeners(): void {
 		const registerForWindow = (eventWindow: Window | null): void => {
@@ -43,22 +49,59 @@ export default class CanvasReferencePlugin extends Plugin {
 			const isKeyDown: { [code: string]: boolean } = {}
 			this.keyEventWindows.add(eventWindow)
 			this.keyDownStates.set(eventWindow, isKeyDown)
+			let zoomCanvas: Canvas | undefined
+			let zoomShiftFallback = false
+			const zoomController = createContinuousZoomController(
+				{
+					setInterval: (callback, delay) => this.registerInterval(eventWindow.setInterval(callback, delay)),
+					clearInterval: (interval) => eventWindow.clearInterval(interval),
+				},
+				() => isKeyDown['KeyZ'] === true,
+				() => (
+					isKeyDown['ShiftLeft'] === true
+					|| isKeyDown['ShiftRight'] === true
+					|| zoomShiftFallback
+				) ? -0.1 : 0.1,
+				(step) => zoomCanvas?.zoomBy(step),
+			)
+			this.zoomControllers.set(eventWindow, zoomController)
 
 			const clearKeyState = () => {
 				for (const code of Object.keys(isKeyDown)) delete isKeyDown[code]
+				zoomController.stop()
+				zoomCanvas = undefined
+				zoomShiftFallback = false
 			}
 
 			this.registerDomEvent(eventWindow, "keydown", (event: KeyboardEvent) => {
 				if (event.repeat) return
 				const canvas = getCanvasFromEvent(this.app, event)
 				if (!canvas || !canHandleCanvasKeyboardEvent(event, canvas)) return
+				if (!this.handledKeyboardEvents.consume(event)) return
 
 				isKeyDown[event.code] = true
-				const handled = onCanvasKeyDown(event, isKeyDown, canvas)
+				if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
+					zoomShiftFallback = true
+				}
+				const handled = onCanvasKeyDown(event, isKeyDown, canvas, {
+					startContinuousZoom: (zoomTarget, shiftKey) => {
+						zoomCanvas = zoomTarget
+						zoomShiftFallback = shiftKey
+						zoomController.start()
+					},
+				})
 				if (handled) event.preventDefault()
 			})
 			this.registerDomEvent(eventWindow, "keyup", (event: KeyboardEvent) => {
+				if (!this.handledKeyboardEvents.consume(event)) return
 				isKeyDown[event.code] = false
+				if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
+					zoomShiftFallback = isKeyDown['ShiftLeft'] === true || isKeyDown['ShiftRight'] === true
+				}
+				if (event.code === 'KeyZ') {
+					zoomController.stop()
+					zoomCanvas = undefined
+				}
 			})
 			this.registerDomEvent(eventWindow, "blur", clearKeyState)
 			this.registerDomEvent(eventWindow.document, "visibilitychange", () => {
@@ -78,13 +121,16 @@ export default class CanvasReferencePlugin extends Plugin {
 		this.registerEvent(this.app.workspace.on("window-close", (_workspaceWindow, eventWindow) => {
 			const state = this.keyDownStates.get(eventWindow)
 			if (state) for (const code of Object.keys(state)) delete state[code]
+			this.zoomControllers.get(eventWindow)?.stop()
+			this.zoomControllers.delete(eventWindow)
 			this.keyDownStates.delete(eventWindow)
 			this.keyEventWindows.delete(eventWindow)
 		}))
 	}
 
 	onunload(): void {
-
+		for (const controller of this.zoomControllers.values()) controller.stop()
+		this.zoomControllers.clear()
 	}
 
 	registerEvents(): void {

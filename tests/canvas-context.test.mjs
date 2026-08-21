@@ -11,6 +11,8 @@ import layout from "../.test-build/brickLayout.js"
 import suggestData from "../.test-build/canvas-link-suggest-data.js"
 import nodeOperations from "../.test-build/canvas-node-operations.js"
 import edgeOperations from "../.test-build/canvas-edge-operations.js"
+import zoomModule from "../.test-build/canvas-zoom.js"
+import guardModule from "../.test-build/keyboard-event-guard.js"
 
 const {
 	canHandleCanvasKeyboardEvent,
@@ -28,6 +30,8 @@ const { packRectangles } = layout
 const { parseCanvasNodes } = suggestData
 const { createCanvasTextNode } = nodeOperations
 const { addCanvasEdge } = edgeOperations
+const { createContinuousZoomController } = zoomModule
+const { KeyboardEventGuard } = guardModule
 
 const keyboardEvent = (overrides = {}) => ({
 	key: "",
@@ -120,6 +124,75 @@ test("Canvas 事务只请求一次刷新和保存，并返回变更结果", () =
 
 	assert.equal(result, 42)
 	assert.deepEqual(calls, ["mutation", "frame", "save"])
+})
+
+test("Z 按住时连续缩放，弹起后停止且重复 start 不会创建第二个计时器", () => {
+	let keyDown = true
+	let intervalCallback
+	let nextInterval = 1
+	const cleared = []
+	const steps = []
+	const controller = createContinuousZoomController(
+		{
+			setInterval: callback => {
+				intervalCallback = callback
+				return nextInterval++
+			},
+			clearInterval: interval => cleared.push(interval),
+		},
+		() => keyDown,
+		() => 0.1,
+		step => steps.push(step),
+	)
+
+	controller.start()
+	controller.start()
+	assert.equal(controller.active, true)
+	assert.deepEqual(steps, [0.1])
+	intervalCallback()
+	assert.deepEqual(steps, [0.1, 0.1])
+	keyDown = false
+	intervalCallback()
+	assert.equal(controller.active, false)
+	assert.deepEqual(cleared, [1])
+})
+
+test("Z 按住期间切换 Shift 会动态改变缩放方向", () => {
+	let keyDown = true
+	let shiftDown = false
+	let intervalCallback
+	let nextInterval = 1
+	const steps = []
+	const controller = createContinuousZoomController(
+		{
+			setInterval: callback => {
+				intervalCallback = callback
+				return nextInterval++
+			},
+			clearInterval: () => {},
+		},
+		() => keyDown,
+		() => shiftDown ? -0.1 : 0.1,
+		step => steps.push(step),
+	)
+
+	controller.start()
+	shiftDown = true
+	intervalCallback()
+	shiftDown = false
+	intervalCallback()
+	assert.deepEqual(steps, [0.1, -0.1, 0.1])
+
+	keyDown = false
+	intervalCallback()
+})
+
+test("同一个 KeyboardEvent 只消费一次，避免独立窗口快捷键重复执行", () => {
+	const guard = new KeyboardEventGuard()
+	const event = {}
+	assert.equal(guard.consume(event), true)
+	assert.equal(guard.consume(event), false)
+	assert.equal(guard.consume({}), true)
 })
 
 test("创建节点只调用 createTextNode，不重复调用 addNode", () => {
