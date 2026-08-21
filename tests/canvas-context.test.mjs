@@ -21,7 +21,7 @@ const {
 	isCanvasEditing,
 	isEditableTarget,
 } = context
-const { getCanvasShortcutId, getCanvasShortcutConflicts, DEFAULT_CANVAS_SHORTCUT_SETTINGS, normalizeCanvasShortcutSettings } = shortcuts
+const { canPropagateCanvasShortcut, getCanvasShortcutId, getCanvasShortcutConflicts, getCanvasTitleLevel, DEFAULT_CANVAS_SHORTCUT_SETTINGS, normalizeCanvasShortcutSettings } = shortcuts
 const { commitCanvasMutation } = mutations
 const { createCanvasElementId } = uuid
 const { normalizeCanvasElementId, validateCanvasElementId } = ids
@@ -58,6 +58,8 @@ test("快捷键匹配集中配置的默认组合", () => {
 	assert.equal(getCanvasShortcutId(keyboardEvent({ key: "w", code: "KeyW", ctrlKey: true })), undefined)
 	assert.equal(getCanvasShortcutId(keyboardEvent({ key: "1", code: "Digit1", altKey: true })), "formatTitle")
 	assert.equal(getCanvasShortcutId(keyboardEvent({ key: "!", code: "Digit1", shiftKey: true })), undefined)
+	assert.equal(canPropagateCanvasShortcut(keyboardEvent({ key: "w", code: "KeyW" })), true)
+	assert.equal(canPropagateCanvasShortcut(keyboardEvent({ key: "c", code: "KeyC" })), false)
 })
 
 test("快捷键配置会同步影响主/副窗口使用的同一匹配器", () => {
@@ -67,10 +69,35 @@ test("快捷键配置会同步影响主/副窗口使用的同一匹配器", () =
 	assert.equal(getCanvasShortcutId(keyboardEvent({ code: "KeyV" }), settings), "cycleColor")
 })
 
+test("编辑、取消和标题级别按键族都由设置驱动", () => {
+	const settings = normalizeCanvasShortcutSettings({
+		...DEFAULT_CANVAS_SHORTCUT_SETTINGS,
+		edit: ["KeyI", "KeyO"],
+		cancelSelection: ["KeyU", "KeyP"],
+		formatTitle: ["Digit0", "KeyT", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9"],
+	})
+
+	assert.equal(getCanvasShortcutId(keyboardEvent({ code: "KeyI" }), settings), "edit")
+	assert.equal(getCanvasShortcutId(keyboardEvent({ code: "KeyO" }), settings), "edit")
+	assert.equal(getCanvasShortcutId(keyboardEvent({ code: "KeyU" }), settings), "cancelSelection")
+	assert.equal(getCanvasShortcutId(keyboardEvent({ code: "KeyP" }), settings), "cancelSelection")
+	assert.equal(getCanvasShortcutId(keyboardEvent({ code: "KeyT", altKey: true }), settings), "formatTitle")
+	assert.equal(getCanvasTitleLevel("KeyT", settings), 1)
+	assert.equal(getCanvasTitleLevel("Digit1", settings), undefined)
+})
+
 test("快捷键选择器拦截会造成无关路径误触发的重叠按键", () => {
 	assert.ok(getCanvasShortcutConflicts(DEFAULT_CANVAS_SHORTCUT_SETTINGS, "zoom", "KeyC").includes("cycleColor"))
 	assert.deepEqual(getCanvasShortcutConflicts(DEFAULT_CANVAS_SHORTCUT_SETTINGS, "compactLayout", "KeyE"), [])
 	assert.ok(getCanvasShortcutConflicts(DEFAULT_CANVAS_SHORTCUT_SETTINGS, "splitList", "KeyR").includes("createEdge"))
+	assert.ok(getCanvasShortcutConflicts(DEFAULT_CANVAS_SHORTCUT_SETTINGS, "edit", "KeyC", 0).includes("cycleColor"))
+	assert.ok(getCanvasShortcutConflicts(DEFAULT_CANVAS_SHORTCUT_SETTINGS, "formatTitle", "Digit0", 1).includes("formatTitle"))
+	assert.ok(getCanvasShortcutConflicts(DEFAULT_CANVAS_SHORTCUT_SETTINGS, "moveNorth", "KeyA").includes("directional"))
+})
+
+test("损坏的标题级别按键族配置会安全恢复十个默认槽位", () => {
+	const settings = normalizeCanvasShortcutSettings({ ...DEFAULT_CANVAS_SHORTCUT_SETTINGS, formatTitle: ["Digit0", "Digit0"] })
+	assert.deepEqual(settings.formatTitle, DEFAULT_CANVAS_SHORTCUT_SETTINGS.formatTitle)
 })
 
 test("输入控件及其祖先编辑区域会被识别为编辑目标", () => {
@@ -277,6 +304,9 @@ test("创建节点只调用 createTextNode，不重复调用 addNode", () => {
 	assert.equal(createCalls[0].focus, false)
 	assert.deepEqual(node.bbox, { minX: 10, minY: 20, maxX: 130, maxY: 60 })
 	assert.equal(node.color, "2")
+
+	createCanvasTextNode(canvas, { x: 0, y: 0 })
+	assert.equal(node.color, "")
 })
 
 test("连边先写回完整数据，外层事务再统一保存", () => {

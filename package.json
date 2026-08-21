@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-whiteboard-deduction-arc",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "ARC 自用的 Obsidian Canvas 白板推演工具集。",
 	"main": "main.js",
 	"scripts": {

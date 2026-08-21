@@ -17,7 +17,7 @@
 |---|---|
 | `src/main.ts` | 插件生命周期、每窗口监听、清理和设置持久化 |
 | `src/canvas-context.ts` | 从事件 DOM 解析 Canvas 与负上下文保护 |
-| `src/canvas-shortcuts.ts` | 快捷键定义、配置规范化、冲突检测和方向解析 |
+| `src/canvas-shortcuts.ts` | 快捷键定义、按键族配置规范化、冲突检测和方向/标题级别解析 |
 | `src/canvas-keydown-features.ts` | 白板按键行为；只消费已解析的 shortcut ID |
 | `src/canvas-mutations.ts` | Canvas 修改后的统一刷新/保存边界 |
 | `src/canvas-link-suggest.ts` | 打开 Canvas 的内存内容与 Vault API 读取 |

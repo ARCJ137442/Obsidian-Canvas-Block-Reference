@@ -17,7 +17,7 @@ import type { ContinuousZoomController } from './canvas-zoom';
 import { KeyboardEventGuard } from './keyboard-event-guard';
 import { WindowRegistrationRegistry } from './window-registration';
 import type { Canvas } from 'obsidian/canvas';
-import { DEFAULT_CANVAS_SHORTCUT_SETTINGS, normalizeCanvasShortcutSettings } from './canvas-shortcuts';
+import { canPropagateCanvasShortcut, DEFAULT_CANVAS_SHORTCUT_SETTINGS, normalizeCanvasShortcutSettings, withCanvasShortcutCode } from './canvas-shortcuts';
 import type { CanvasShortcutSettingKey, CanvasShortcutSettings } from './canvas-shortcuts';
 import { CanvasShortcutSettingTab } from './settings';
 // import { CMD_selectAllEdgesInCanvas } from './commands/select-all-edges';
@@ -60,8 +60,8 @@ export default class CanvasReferencePlugin extends Plugin {
 		return this.settings
 	}
 
-	async updateShortcut(id: Exclude<CanvasShortcutSettingKey, "edit" | "cancelSelection">, code: string): Promise<void> {
-		this.settings = { ...this.settings, [id]: code }
+	async updateShortcut(id: CanvasShortcutSettingKey, code: string, index = 0): Promise<void> {
+		this.settings = withCanvasShortcutCode(this.settings, id, code, index)
 		this.clearAllKeyboardStates()
 		this.persistedData.shortcuts = this.settings
 		await this.saveData(this.persistedData)
@@ -132,7 +132,13 @@ export default class CanvasReferencePlugin extends Plugin {
 				}, this.settings)
 				if (handled) {
 					event.preventDefault()
-					event.stopImmediatePropagation()
+					// Directional WASD is intentionally allowed to continue to the
+					// Canvas document so companion plugins such as canvas-keyboard-pan
+					// can consume the same physical key without losing the node-jump
+					// behavior implemented here. Other whiteboard shortcuts remain
+					// exclusive to avoid accidental cross-plugin actions.
+					if (!canPropagateCanvasShortcut(event, this.settings))
+						event.stopImmediatePropagation()
 				}
 			}
 			const onKeyUp = (event: KeyboardEvent): void => {

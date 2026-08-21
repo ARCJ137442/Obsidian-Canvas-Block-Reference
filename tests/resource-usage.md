@@ -81,5 +81,33 @@
 | 2026-08-21 | `whiteboard-0.1.0-release-candidate-build-v1` | 成功，退出码 0 | 1906.13 ms | 235,094,016 B（224.20 MiB） | 1.781 s | 2 |
 | 2026-08-21 | `life-panel-whiteboard-0.1.0-final-plugin-reload-errors-v1` | 新插件重载成功；CLI 错误缓冲仍仅含既有 `advanced-canvas` 5 条栈帧 | 323.25 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
 | 2026-08-21 | `life-panel-whiteboard-0.1.0-final-installed-runtime-probe-v1` | 安装产物主/副窗口普通 Z 各 3 次；Ctrl+S 与白板外 Z 增量均为 0 | 625.77 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `whiteboard-directional-propagation-build-v1` | 成功，退出码 0 | 2089.27 ms | 256,647,168 B（244.76 MiB） | 3.016 s | 2 |
+| 2026-08-21 | `whiteboard-directional-propagation-tests-v1` | 20/20，退出码 0 | 3232.22 ms | 275,820,544 B（263.04 MiB） | 3.438 s | 2 |
+| 2026-08-21 | `life-panel-deploy-reload-whiteboard-directional-propagation-v1` | 复制并重载成功 | 363.66 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `whiteboard-directional-propagation-build-v2` | 成功，退出码 0 | 2015.48 ms | 70,651,904 B（67.38 MiB） | 0.562 s | 1 |
+| 2026-08-21 | `whiteboard-directional-propagation-tests-v2` | 20/20，退出码 0 | 3263.06 ms | 280,387,584 B（267.40 MiB） | 3.672 s | 2 |
+| 2026-08-21 | `life-panel-deploy-reload-whiteboard-pan-directional-fix-v2` | 白板与 Pan 均重载成功 | 795.87 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-whiteboard-native-create-color-probe-v1` | 原生 `createTextNode` 运行态返回 `color:""`，临时节点已移除 | 332.23 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `whiteboard-native-default-color-build-v1` | 成功，退出码 0 | 1974.05 ms | 64,466,944 B（61.48 MiB） | 0.484 s | 1 |
+| 2026-08-21 | `whiteboard-native-default-color-tests-v1` | 20/20，退出码 0 | 3083.26 ms | 295,120,896 B（281.45 MiB） | 3.812 s | 2 |
+| 2026-08-21 | `life-panel-deploy-reload-whiteboard-native-default-color-v1` | 复制并重载成功 | 331.41 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-whiteboard-native-default-color-errors-v1` | `No errors captured` | 321.97 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `whiteboard-configurable-shortcut-families-build-v1` | 失败：设置页使用了不存在的 `Setting.name` 属性，随后已修复 | 1456.53 ms | 241,565,696 B（230.38 MiB） | 2.078 s | 2 |
+| 2026-08-21 | `whiteboard-configurable-shortcut-families-tests-v1` | 22/22，退出码 0 | 2442.65 ms | 267,468,800 B（255.08 MiB） | 2.359 s | 3 |
+| 2026-08-21 | `whiteboard-configurable-shortcut-families-build-v2` | 成功，退出码 0 | 1910.95 ms | 240,549,888 B（229.41 MiB） | 2.156 s | 2 |
+| 2026-08-21 | `whiteboard-configurable-shortcut-families-tests-v2` | 22/22，退出码 0 | 2330.90 ms | 266,067,968 B（253.74 MiB） | 2.344 s | 2 |
+| 2026-08-21 | `life-panel-deploy-reload-whiteboard-configurable-shortcut-families-v1` | 复制构建产物并重载成功 | 601.34 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-whiteboard-configurable-shortcut-families-runtime-settings-v1` | 运行态读取成功；标题级别按键族存在且长度为 10 | 496.27 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-whiteboard-configurable-shortcut-families-errors-v1` | 发现 `plugin:advanced-canvas` 的既有 `resolveLinks` 错误；无本插件栈帧 | 231.19 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-whiteboard-configurable-shortcut-families-settings-dom-v1` | 设置页运行态存在单键区、编辑/取消/标题级别按键族 | 273.73 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-whiteboard-configurable-shortcut-families-settings-dom-v2` | 设置页实际渲染编辑 2 行、取消 2 行、标题级别 10 行 | 226.22 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-whiteboard-configurable-shortcut-families-update-restore-v1` | 运行态临时改绑编辑槽位和标题槽位成功，随后恢复；`restored:true` | 382.98 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `whiteboard-configurable-shortcut-families-build-v3` | 成功，退出码 0 | 1563.22 ms | 48,418,816 B（46.18 MiB） | 0.328 s | 1 |
+| 2026-08-21 | `whiteboard-configurable-shortcut-families-tests-v3` | 22/22，退出码 0 | 2478.39 ms | 297,144,320 B（283.38 MiB） | 3.172 s | 2 |
+| 2026-08-21 | `life-panel-deploy-reload-whiteboard-configurable-shortcut-families-v2` | 最终构建产物复制并重载成功 | 619.46 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-whiteboard-configurable-shortcut-families-final-runtime-v1` | 最终运行态读取成功；编辑/取消族正常，标题族长度为 10 | 386.99 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `life-panel-whiteboard-configurable-shortcut-families-final-errors-v1` | 仍只有 `plugin:advanced-canvas` 的既有错误；无本插件栈帧 | 383.04 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-21 | `whiteboard-0.2.0-release-build-v1` | 成功，退出码 0 | 1723.00 ms | 70,553,600 B（67.29 MiB） | 0.453 s | 1 |
+| 2026-08-21 | `whiteboard-0.2.0-release-tests-v1` | 22/22，退出码 0 | 2545.60 ms | 293,519,360 B（279.92 MiB） | 3.188 s | 2 |
 
 测量工具：[`scripts/measure-command.ps1`](../scripts/measure-command.ps1)。峰值工作集是 Windows 进程树内存峰值，不等同于整台机器的总内存占用；短于采样间隔的瞬时峰值可能被漏采。

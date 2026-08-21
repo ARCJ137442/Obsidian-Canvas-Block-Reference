@@ -23,7 +23,9 @@ export function createCanvasTextNode(canvas: Canvas, {
 	width = 260,
 	height = 60,
 	text = "",
-	color = "0",
+	// Obsidian's native double-click creation uses an empty color string
+	// for the default Canvas node color. Do not replace it with "0".
+	color = "",
 }: CanvasTextNodeOptions): CanvasNode {
 	const node = canvas.createTextNode({
 		pos: { x, y },

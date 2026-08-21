@@ -32,10 +32,14 @@ export interface CanvasShortcutSettings {
 	createEdge: string
 	compactLayout: string
 	counter: string
+	/** Index is the Markdown title level (0~9); value is a KeyboardEvent.code. */
+	formatTitle: string[]
 	splitList: string
 }
 
 export type CanvasShortcutSettingKey = keyof CanvasShortcutSettings
+export type CanvasShortcutSingleSettingKey = Exclude<CanvasShortcutSettingKey, "edit" | "cancelSelection" | "formatTitle">
+export type CanvasShortcutFamilySettingKey = "edit" | "cancelSelection" | "formatTitle"
 
 export type CanvasShortcutId =
 	| "edit" | "deleteSelection" | "cancelSelection" | "cycleColor" | "directional"
@@ -57,12 +61,13 @@ export const DEFAULT_CANVAS_SHORTCUT_SETTINGS: CanvasShortcutSettings = {
 	createEdge: "KeyR",
 	compactLayout: "KeyE",
 	counter: "KeyY",
+	formatTitle: ["Digit0", "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9"],
 	splitList: "KeyK",
 }
 
-/** Only bindings with one selectable key are shown in the settings UI. */
+/** Actions that use one configurable key. Key families are rendered separately in settings. */
 export const CONFIGURABLE_CANVAS_SHORTCUTS: ReadonlyArray<{
-	id: Exclude<CanvasShortcutSettingKey, "edit" | "cancelSelection">
+	id: CanvasShortcutSingleSettingKey
 	name: string
 	description: string
 }> = [
@@ -118,8 +123,9 @@ function createCanvasShortcutDefinitions(settings: CanvasShortcutSettings): Reco
 		createEdge: { codes: [settings.createEdge], shift: true, ctrl: false, alt: false, meta: false },
 		compactLayout: { codes: [settings.compactLayout], shift: true, ctrl: true, alt: true, meta: false },
 		counter: { codes: [settings.counter], shift: "any", ctrl: false, alt: false, meta: false },
-		// 数字键携带 0~9 的标题级别，因此保留为一个固定的数字键族。
-		formatTitle: { codePattern: /^Digit[0-9]$/, shift: false, ctrl: false, alt: "any", meta: false },
+		// Title levels are a configurable key family. Alt remains optional for compatibility;
+		// Shift/Ctrl/Meta remain disallowed so ordinary editor shortcuts are not swallowed.
+		formatTitle: { codes: settings.formatTitle, shift: false, ctrl: false, alt: "any", meta: false },
 		splitList: { codes: [settings.splitList], shift: true, ctrl: false, alt: false, meta: false },
 	}
 }
@@ -141,25 +147,37 @@ export function getCanvasShortcutId(
 	return undefined
 }
 
+/** Directional shortcuts may be shared with a companion Canvas viewport plugin. */
+export function canPropagateCanvasShortcut(
+	event: Pick<KeyboardEvent, "key" | "code" | "shiftKey" | "ctrlKey" | "altKey" | "metaKey">,
+	settings: CanvasShortcutSettings = DEFAULT_CANVAS_SHORTCUT_SETTINGS,
+): boolean {
+	return getCanvasShortcutId(event, settings) === "directional"
+}
+
 /** Return configurable shortcuts whose modifier/code domain overlaps a candidate. */
 export function getCanvasShortcutConflicts(
 	settings: CanvasShortcutSettings,
-	id: Exclude<CanvasShortcutSettingKey, "edit" | "cancelSelection">,
+	id: CanvasShortcutSettingKey,
 	candidateCode: string,
+	index = 0,
 ): CanvasShortcutId[] {
-	const proposed = { ...settings, [id]: candidateCode } as CanvasShortcutSettings
+	const proposed = withCanvasShortcutCode(settings, id, candidateCode, index)
 	const definitions = createCanvasShortcutDefinitions(proposed)
 	const conflicts = new Set<CanvasShortcutId>()
+	const proposedId = shortcutIdForSetting(id)
+	const otherCodesInSameBinding = getOtherCodesInBinding(proposed, id, index)
+	if (otherCodesInSameBinding.includes(candidateCode)) conflicts.add(proposedId)
 	const modifiers = [false, true]
 	for (const shiftKey of modifiers) {
 		for (const ctrlKey of modifiers) {
 			for (const altKey of modifiers) {
 				for (const metaKey of modifiers) {
 					const event = { key: candidateCode, code: candidateCode, shiftKey, ctrlKey, altKey, metaKey }
-					const proposedDefinition = definitions[id === "moveNorth" || id === "moveWest" || id === "moveSouth" || id === "moveEast" ? "directional" : id]
+					const proposedDefinition = definitions[proposedId]
 					if (!matchesCanvasShortcut(event, proposedDefinition)) continue
 					for (const otherId of CANVAS_SHORTCUT_ORDER) {
-						if (otherId === id || (id.startsWith("move") && otherId === "directional")) continue
+						if (otherId === proposedId) continue
 						if (matchesCanvasShortcut(event, definitions[otherId])) conflicts.add(otherId)
 					}
 				}
@@ -182,7 +200,7 @@ export function getShortcutCodes(settings: CanvasShortcutSettings, id: CanvasSho
 		case "createEdge": return [settings.createEdge]
 		case "compactLayout": return [settings.compactLayout]
 		case "counter": return [settings.counter]
-		case "formatTitle": return []
+		case "formatTitle": return settings.formatTitle
 		case "splitList": return [settings.splitList]
 	}
 }
@@ -197,6 +215,68 @@ export function getCanvasDirection(code: string, settings: CanvasShortcutSetting
 	return undefined
 }
 
+/** Return the title level represented by a configured title-family key. */
+export function getCanvasTitleLevel(code: string, settings: CanvasShortcutSettings): number | undefined {
+	const level = settings.formatTitle.indexOf(code)
+	return level >= 0 ? level : undefined
+}
+
+/** Replace one slot in a single shortcut or shortcut family. */
+export function withCanvasShortcutCode(
+	settings: CanvasShortcutSettings,
+	id: CanvasShortcutSettingKey,
+	code: string,
+	index = 0,
+): CanvasShortcutSettings {
+	switch (id) {
+		case "edit": return { ...settings, edit: replaceShortcutCode(settings.edit, code, index) }
+		case "cancelSelection": return { ...settings, cancelSelection: replaceShortcutCode(settings.cancelSelection, code, index) }
+		case "formatTitle": return { ...settings, formatTitle: replaceShortcutCode(settings.formatTitle, code, index) }
+		case "deleteSelection": return { ...settings, deleteSelection: code }
+		case "cycleColor": return { ...settings, cycleColor: code }
+		case "moveNorth": return { ...settings, moveNorth: code }
+		case "moveWest": return { ...settings, moveWest: code }
+		case "moveSouth": return { ...settings, moveSouth: code }
+		case "moveEast": return { ...settings, moveEast: code }
+		case "extend": return { ...settings, extend: code }
+		case "focus": return { ...settings, focus: code }
+		case "zoom": return { ...settings, zoom: code }
+		case "createEdge": return { ...settings, createEdge: code }
+		case "compactLayout": return { ...settings, compactLayout: code }
+		case "counter": return { ...settings, counter: code }
+		case "splitList": return { ...settings, splitList: code }
+	}
+}
+
+function replaceShortcutCode(codes: readonly string[], code: string, index: number): string[] {
+	const next = [...codes]
+	if (index >= 0 && index < next.length) next[index] = code
+	return next
+}
+
+function shortcutIdForSetting(id: CanvasShortcutSettingKey): CanvasShortcutId {
+	return id === "moveNorth" || id === "moveWest" || id === "moveSouth" || id === "moveEast"
+		? "directional"
+		: id
+}
+
+function getOtherCodesInBinding(settings: CanvasShortcutSettings, id: CanvasShortcutSettingKey, index: number): string[] {
+	if (id === "edit") return settings.edit.filter((_, slot) => slot !== index)
+	if (id === "cancelSelection") return settings.cancelSelection.filter((_, slot) => slot !== index)
+	if (id === "formatTitle") return settings.formatTitle.filter((_, slot) => slot !== index)
+	if (id === "moveNorth" || id === "moveWest" || id === "moveSouth" || id === "moveEast") {
+		return [
+			["moveNorth", settings.moveNorth],
+			["moveWest", settings.moveWest],
+			["moveSouth", settings.moveSouth],
+			["moveEast", settings.moveEast],
+		]
+			.filter(([slot]) => slot !== id)
+			.map(([, code]) => code)
+	}
+	return []
+}
+
 export function normalizeCanvasShortcutSettings(value: unknown): CanvasShortcutSettings {
 	const source = value && typeof value === "object" ? value as Partial<CanvasShortcutSettings> : {}
 	const stringValue = (candidate: unknown, fallback: string): string =>
@@ -205,6 +285,11 @@ export function normalizeCanvasShortcutSettings(value: unknown): CanvasShortcutS
 		if (!Array.isArray(candidate)) return [...fallback]
 		const result = candidate.filter((code): code is string => typeof code === "string" && code.length > 0)
 		return result.length > 0 ? result : [...fallback]
+	}
+	const fixedStringArray = (candidate: unknown, fallback: string[], length: number): string[] => {
+		if (!Array.isArray(candidate) || candidate.length !== length) return [...fallback]
+		const result = candidate.filter((code): code is string => typeof code === "string" && code.length > 0)
+		return result.length === length && new Set(result).size === length ? result : [...fallback]
 	}
 
 	return {
@@ -222,6 +307,7 @@ export function normalizeCanvasShortcutSettings(value: unknown): CanvasShortcutS
 		createEdge: stringValue(source.createEdge, DEFAULT_CANVAS_SHORTCUT_SETTINGS.createEdge),
 		compactLayout: stringValue(source.compactLayout, DEFAULT_CANVAS_SHORTCUT_SETTINGS.compactLayout),
 		counter: stringValue(source.counter, DEFAULT_CANVAS_SHORTCUT_SETTINGS.counter),
+		formatTitle: fixedStringArray(source.formatTitle, DEFAULT_CANVAS_SHORTCUT_SETTINGS.formatTitle, 10),
 		splitList: stringValue(source.splitList, DEFAULT_CANVAS_SHORTCUT_SETTINGS.splitList),
 	}
 }

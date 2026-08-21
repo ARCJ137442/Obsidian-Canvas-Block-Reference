@@ -24,3 +24,5 @@ data.json
 
 # Private files
 *.private.*
+*.env
+.env*

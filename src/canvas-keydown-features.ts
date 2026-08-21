@@ -6,7 +6,7 @@ import { Canvas, CanvasElementSide, CanvasNode } from "obsidian/canvas";
 import { addEdge, enumerate, isCanvasEdge, isCanvasNode, isCanvasTextNode, nLines, panToElements, selectedNodes, setNodePosition, sum, updateNodeData } from "./utils";
 import { Notice } from "obsidian";
 import { packRectangles } from "./brickLayout";
-import { DEFAULT_CANVAS_SHORTCUT_SETTINGS, getCanvasDirection, getCanvasShortcutId } from "./canvas-shortcuts";
+import { DEFAULT_CANVAS_SHORTCUT_SETTINGS, getCanvasDirection, getCanvasShortcutId, getCanvasTitleLevel } from "./canvas-shortcuts";
 import type { CanvasShortcutSettings } from "./canvas-shortcuts";
 import { commitCanvasMutation } from "./canvas-mutations";
 import { createCanvasTextNode } from "./canvas-node-operations";
@@ -362,17 +362,16 @@ export function onCanvasKeyDown(
 		}
 		}, { refresh: false })
 	}
-	// 数字键Digit，小键盘Numpad | ❗Alt组合键被占用了
-	if (shortcutId === "formatTitle") {
+	// 标题级别按键族：级别由设置中的数组槽位决定，不再从物理按键名称硬编码推断。
+	const titleLevel = shortcutId === "formatTitle" ? getCanvasTitleLevel(code, settings) : undefined
+	if (titleLevel !== undefined) {
 		commitCanvasMutation(canvas, () => {
 		for (const node of selectedNodes(canvas)) {
 			if (!isCanvasTextNode(node)) continue
-			let n: number // 拆分 Digit
-			try { n = parseInt(code.slice(5), 10) } catch { continue }
 			const text = node.text
 			const { title, rest } = extractNodeTextTitle(text);
 			const [mdTitle, _] = extractTitleFromLine(title)
-			const newMdTitle = formatMdTitle(mdTitle, n)
+			const newMdTitle = formatMdTitle(mdTitle, titleLevel)
 			const newText = newMdTitle + rest
 			node.setText(newText)
 		}

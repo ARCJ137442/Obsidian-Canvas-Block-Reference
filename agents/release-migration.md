@@ -6,7 +6,7 @@
 
 - 显示名：`Obsidian白板推演-ARC.ver`
 - ID：`obsidian-whiteboard-deduction-arc`
-- 当前 minor：`0.1.0`
+- 当前 minor：`0.2.0`
 - 旧 ID：`canvas-block-reference`
 
 插件 ID 是 Obsidian 的身份，不是 Canvas 文件格式。改变 ID 时必须同时检查 manifest、发布压缩包目录、Vault 启用列表、命令热键和插件 data。
