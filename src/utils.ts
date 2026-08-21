@@ -188,7 +188,8 @@ export function getFileLink(app: App, file: TFile): string {
  */
 export function* selectedEdgesIncludesBetweens(canvas: Canvas): Generator<CanvasEdge> {
 	// 遍历所有直接选中的连边
-	for (const element of canvas.selection) {
+	// Canvas 的 setColor/setText 等 mutation 可能重建 selection；先快照，避免同一元素被重复处理。
+	for (const element of [...canvas.selection]) {
 		if (isCanvasEdge(element))
 			yield element
 		// 节点：判断从其发出的边所接触的目标节点是否也被选中
@@ -208,7 +209,7 @@ export function* selectedEdgesIncludesBetweens(canvas: Canvas): Generator<Canvas
  * 获取所有选中连边
  */
 export function* selectedEdges(canvas: Canvas): Generator<CanvasEdge> {
-	for (const element of canvas.selection) {
+	for (const element of [...canvas.selection]) {
 		if (isCanvasEdge(element)) {
 			yield element;
 		}
@@ -219,7 +220,7 @@ export function* selectedEdges(canvas: Canvas): Generator<CanvasEdge> {
  * 获取所有选中节点
  */
 export function* selectedNodes(canvas: Canvas): Generator<CanvasNode> {
-	for (const element of canvas.selection) {
+	for (const element of [...canvas.selection]) {
 		if (isCanvasNode(element)) {
 			yield element;
 		}

@@ -22,6 +22,7 @@
 		"../src/canvas-edge-operations.ts",
 		"../src/canvas-zoom.ts",
 		"../src/keyboard-event-guard.ts",
+		"../src/window-registration.ts",
 		"../src/brickLayout.ts",
 		"../src/typings/canvas.ts"
 	]

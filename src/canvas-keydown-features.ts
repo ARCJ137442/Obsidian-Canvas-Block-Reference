@@ -57,7 +57,7 @@ export function onCanvasKeyDown(
 		const N_COLORS = AVAILABLE_COLORS.length
 		if (canvas.selection.size <= 0) return true
 		commitCanvasMutation(canvas, () => {
-		for (const element of canvas.selection.values()) {
+		for (const element of [...canvas.selection]) {
 			// 正在编辑的元素不修改颜色
 			if (isCanvasNode(element) && element.isEditing) continue
 			// 其它情况

@@ -15,6 +15,7 @@ import { canHandleCanvasKeyboardEvent, getCanvasFromEvent } from './canvas-conte
 import { createContinuousZoomController } from './canvas-zoom';
 import type { ContinuousZoomController } from './canvas-zoom';
 import { KeyboardEventGuard } from './keyboard-event-guard';
+import { WindowRegistrationRegistry } from './window-registration';
 import type { Canvas } from 'obsidian/canvas';
 // import { CMD_selectAllEdgesInCanvas } from './commands/select-all-edges';
 // ! ✅「选择所有连边」的功能，在AdvancedCanvas中有了
@@ -37,17 +38,22 @@ export default class CanvasReferencePlugin extends Plugin {
 		this.registerCanvasKeyListeners()
 	}
 
-	private keyEventWindows = new WeakSet<Window>()
-	private keyDownStates = new WeakMap<Window, { [code: string]: boolean }>()
+	private keyEventWindows = new WindowRegistrationRegistry<Window>()
+	private keyDownStates = new Map<Window, { [code: string]: boolean }>()
 	private zoomControllers = new Map<Window, ContinuousZoomController>()
+	private windowCleanups = new Map<Window, () => void>()
 	private handledKeyboardEvents = new KeyboardEventGuard()
 
 	private registerCanvasKeyListeners(): void {
 		const registerForWindow = (eventWindow: Window | null): void => {
-			if (!eventWindow || this.keyEventWindows.has(eventWindow)) return
+			if (!eventWindow || !this.keyEventWindows.claim(eventWindow)) return
+
+			const windowWithCleanup = eventWindow as Window & {
+				__canvasBlockReferenceKeyboardCleanup?: () => void
+			}
+			windowWithCleanup.__canvasBlockReferenceKeyboardCleanup?.()
 
 			const isKeyDown: { [code: string]: boolean } = {}
-			this.keyEventWindows.add(eventWindow)
 			this.keyDownStates.set(eventWindow, isKeyDown)
 			let zoomCanvas: Canvas | undefined
 			let zoomShiftFallback = false
@@ -73,9 +79,9 @@ export default class CanvasReferencePlugin extends Plugin {
 				zoomShiftFallback = false
 			}
 
-			this.registerDomEvent(eventWindow, "keydown", (event: KeyboardEvent) => {
+			const onKeyDown = (event: KeyboardEvent): void => {
 				if (event.repeat) return
-				const canvas = getCanvasFromEvent(this.app, event)
+				const canvas = getCanvasFromEvent(this.app, event, eventWindow)
 				if (!canvas || !canHandleCanvasKeyboardEvent(event, canvas)) return
 				if (!this.handledKeyboardEvents.consume(event)) return
 
@@ -90,9 +96,12 @@ export default class CanvasReferencePlugin extends Plugin {
 						zoomController.start()
 					},
 				})
-				if (handled) event.preventDefault()
-			})
-			this.registerDomEvent(eventWindow, "keyup", (event: KeyboardEvent) => {
+				if (handled) {
+					event.preventDefault()
+					event.stopImmediatePropagation()
+				}
+			}
+			const onKeyUp = (event: KeyboardEvent): void => {
 				if (!this.handledKeyboardEvents.consume(event)) return
 				isKeyDown[event.code] = false
 				if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
@@ -102,11 +111,35 @@ export default class CanvasReferencePlugin extends Plugin {
 					zoomController.stop()
 					zoomCanvas = undefined
 				}
-			})
-			this.registerDomEvent(eventWindow, "blur", clearKeyState)
-			this.registerDomEvent(eventWindow.document, "visibilitychange", () => {
+			}
+			const onVisibilityChange = (): void => {
 				if (eventWindow.document.visibilityState !== "visible") clearKeyState()
-			})
+			}
+
+			eventWindow.addEventListener("keydown", onKeyDown, true)
+			eventWindow.addEventListener("keyup", onKeyUp, true)
+			eventWindow.addEventListener("blur", clearKeyState)
+			eventWindow.document.addEventListener("visibilitychange", onVisibilityChange)
+
+			let cleaned = false
+			const cleanup = (): void => {
+				if (cleaned) return
+				cleaned = true
+				eventWindow.removeEventListener("keydown", onKeyDown, true)
+				eventWindow.removeEventListener("keyup", onKeyUp, true)
+				eventWindow.removeEventListener("blur", clearKeyState)
+				eventWindow.document.removeEventListener("visibilitychange", onVisibilityChange)
+				if (windowWithCleanup.__canvasBlockReferenceKeyboardCleanup === cleanup)
+					delete windowWithCleanup.__canvasBlockReferenceKeyboardCleanup
+				this.windowCleanups.delete(eventWindow)
+				zoomController.stop()
+				this.zoomControllers.delete(eventWindow)
+				this.keyDownStates.delete(eventWindow)
+				this.keyEventWindows.release(eventWindow)
+			}
+			windowWithCleanup.__canvasBlockReferenceKeyboardCleanup = cleanup
+			this.windowCleanups.set(eventWindow, cleanup)
+			this.register(cleanup)
 		}
 
 		const workspaceDocument = this.app.workspace.containerEl.ownerDocument
@@ -119,18 +152,16 @@ export default class CanvasReferencePlugin extends Plugin {
 			registerForWindow(eventWindow)
 		}))
 		this.registerEvent(this.app.workspace.on("window-close", (_workspaceWindow, eventWindow) => {
-			const state = this.keyDownStates.get(eventWindow)
-			if (state) for (const code of Object.keys(state)) delete state[code]
-			this.zoomControllers.get(eventWindow)?.stop()
-			this.zoomControllers.delete(eventWindow)
-			this.keyDownStates.delete(eventWindow)
-			this.keyEventWindows.delete(eventWindow)
+			this.windowCleanups.get(eventWindow)?.()
 		}))
 	}
 
 	onunload(): void {
-		for (const controller of this.zoomControllers.values()) controller.stop()
+		for (const cleanup of [...this.windowCleanups.values()]) cleanup()
+		this.windowCleanups.clear()
 		this.zoomControllers.clear()
+		this.keyDownStates.clear()
+		this.keyEventWindows.clear()
 	}
 
 	registerEvents(): void {

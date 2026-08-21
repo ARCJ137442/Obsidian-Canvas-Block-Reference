@@ -1,29 +1,47 @@
 import type { App } from "obsidian"
 import type { Canvas } from "obsidian/canvas"
 
+type CanvasViewCandidate = {
+	canvas: Canvas
+	container: HTMLElement
+	view: unknown
+}
+
 /**
  * 从事件所属的 DOM 树解析 Canvas，而不是从 App 的 active view 猜测。
  *
  * Obsidian 的独立窗口拥有自己的 Document；通过所有 workspace leaf 的
  * containerEl 判断归属，可以让主窗口、分栏和 popout 使用同一个解析路径。
  */
-export function getCanvasFromEvent(app: App, event: Event): Canvas | undefined {
+export function getCanvasFromEvent(app: App, event: Event, eventWindow?: Window): Canvas | undefined {
 	const targets = getEventTargets(event)
-	let result: Canvas | undefined
+	const candidates: CanvasViewCandidate[] = []
+	let directCandidate: CanvasViewCandidate | undefined
 
 	app.workspace.iterateAllLeaves(leaf => {
-		if (result) return
 		const view = leaf.view as (typeof leaf.view & {
 			canvas?: Canvas
 			containerEl?: HTMLElement
 		}) | null
 		if (!view || view.getViewType() !== "canvas" || !view.canvas || !view.containerEl) return
-		if (targets.some(target => isInsideContainer(view.containerEl!, target))) {
-			result = view.canvas
-		}
+		const candidate = { canvas: view.canvas, container: view.containerEl, view }
+		candidates.push(candidate)
+		if (!directCandidate && targets.some(target => isInsideContainer(candidate.container, target)))
+			directCandidate = candidate
 	})
 
-	return result
+	if (directCandidate) return directCandidate.canvas
+	if (!eventWindow) return undefined
+
+	const windowCandidates = candidates.filter(candidate => candidate.container.ownerDocument.defaultView === eventWindow)
+	if (windowCandidates.length === 1) return windowCandidates[0].canvas
+
+	const activeElement = eventWindow.document.activeElement
+	const activeCandidate = windowCandidates.find(candidate => isInsideContainer(candidate.container, activeElement))
+	if (activeCandidate) return activeCandidate.canvas
+
+	const activeLeafView = app.workspace.activeLeaf?.view
+	return windowCandidates.find(candidate => candidate.view === activeLeafView)?.canvas
 }
 
 function getEventTargets(event: Event): unknown[] {

@@ -13,6 +13,7 @@ import nodeOperations from "../.test-build/canvas-node-operations.js"
 import edgeOperations from "../.test-build/canvas-edge-operations.js"
 import zoomModule from "../.test-build/canvas-zoom.js"
 import guardModule from "../.test-build/keyboard-event-guard.js"
+import registryModule from "../.test-build/window-registration.js"
 
 const {
 	canHandleCanvasKeyboardEvent,
@@ -32,6 +33,7 @@ const { createCanvasTextNode } = nodeOperations
 const { addCanvasEdge } = edgeOperations
 const { createContinuousZoomController } = zoomModule
 const { KeyboardEventGuard } = guardModule
+const { WindowRegistrationRegistry } = registryModule
 
 const keyboardEvent = (overrides = {}) => ({
 	key: "",
@@ -109,6 +111,53 @@ test("快捷键上下文来自事件所在的 Canvas，而不是 active view", (
 	assert.equal(getCanvasFromEvent(app, { target: targetA, composedPath: () => [targetA] }), canvasA)
 	const outside = { ownerDocument: documentB }
 	assert.equal(getCanvasFromEvent(app, { target: outside, composedPath: () => [outside] }), undefined)
+})
+
+test("窗口级键盘事件只回退到同一窗口的唯一 Canvas", () => {
+	const windowA = {}
+	const windowB = {}
+	const documentA = { defaultView: windowA, activeElement: null }
+	const documentB = { defaultView: windowB, activeElement: null }
+	const rootA = { ownerDocument: documentA, contains: () => false }
+	const rootB = { ownerDocument: documentB, contains: () => false }
+	const canvasA = { name: "A" }
+	const canvasB = { name: "B" }
+	const view = (root, canvas) => ({
+		containerEl: root,
+		canvas,
+		getViewType: () => "canvas",
+	})
+	const app = {
+		workspace: {
+			activeLeaf: { view: view(rootA, canvasA) },
+			iterateAllLeaves(callback) {
+				callback({ view: view(rootA, canvasA) })
+				callback({ view: view(rootB, canvasB) })
+			},
+		},
+	}
+	const event = { target: documentA, composedPath: () => [documentA] }
+
+	assert.equal(getCanvasFromEvent(app, event, windowA), canvasA)
+	assert.equal(getCanvasFromEvent(app, event, windowB), canvasB)
+	assert.equal(getCanvasFromEvent(app, event), undefined)
+})
+
+test("窗口注册表在重载和关闭时可释放并重新注册", () => {
+	const registry = new WindowRegistrationRegistry()
+	const mainWindow = {}
+	const popoutWindow = {}
+
+	assert.equal(registry.claim(mainWindow), true)
+	assert.equal(registry.claim(mainWindow), false)
+	assert.equal(registry.claim(popoutWindow), true)
+	assert.equal(registry.size, 2)
+
+	registry.release(popoutWindow)
+	assert.equal(registry.size, 1)
+	registry.clear()
+	assert.equal(registry.size, 0)
+	assert.equal(registry.claim(mainWindow), true)
 })
 
 test("Canvas 事务只请求一次刷新和保存，并返回变更结果", () => {
