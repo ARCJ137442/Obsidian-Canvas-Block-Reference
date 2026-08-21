@@ -6,9 +6,12 @@ import { Canvas, CanvasElementSide, CanvasNode, ParamCanvasCreateNodePosition } 
 import { addEdge, enumerate, isCanvasEdge, isCanvasNode, isCanvasTextNode, nLines, panToElements, selectedNodes, setNodePosition, sum, updateNodeData } from "./utils";
 import { Notice } from "obsidian";
 import { packRectangles } from "./brickLayout";
+import { getCanvasShortcutId } from "./canvas-shortcuts";
 
 // 独立出的功能：白板中键盘按下的功能
-export async function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: string]: boolean }, canvas: Canvas) {
+export function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: string]: boolean }, canvas: Canvas): boolean {
+	if (!getCanvasShortcutId(e)) return false
+
 	const {
 		key, code,
 		ctrlKey, metaKey, altKey, shiftKey,
@@ -17,7 +20,7 @@ export async function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: stri
 	// 空格+节点 开始编辑（连边作用无效）
 	if ([' ', 'Enter'].includes(key) && !shiftKey && !ctrlKey && !altKey && !metaKey) {
 		const firstElement = canvas.selection.values()?.next()?.value
-		if (!firstElement) return;
+		if (!firstElement) return false;
 		const isEditing = firstElement?.isEditing
 		if (!isEditing) {
 			if (isCanvasNode(firstElement))
@@ -411,6 +414,7 @@ export async function onCanvasKeyDown(e: KeyboardEvent, isKeyDown: { [code: stri
 
 		canvas.requestPushHistory()
 	}
+	return true
 }
 
 // * 下边都是工具函数 * //

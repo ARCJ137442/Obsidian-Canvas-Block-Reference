@@ -107,9 +107,6 @@ function genEvent(title: I18nText, mode: FlipMode) {
 			icon: mode === FlipMode.Horizontal ? "flip-horizontal" : "flip-vertical",
 			section: "action",
 			onClick: (canvas: Canvas, _item: MenuItem, _event: KeyboardEvent | MouseEvent) => {
-				const result = getActiveCanvasView(canvas.app);
-				if (!result) return;
-
 				const nodes = new Set(selectedNodes(canvas))
 				flipCanvasElements(canvas, nodes, mode);
 			}

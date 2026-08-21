@@ -7,7 +7,7 @@
  * 📌通知功能`Notice`参考自 <https://github.com/Vinzent03/obsidian-git>
  */
 
-import { Canvas, CanvasElement } from 'obsidian/canvas';
+import { Canvas, CanvasElement, CanvasView } from 'obsidian/canvas';
 import { App, MenuItem, Notice, TFile } from 'obsidian';
 import { getActiveCanvasView, getCanvasTitleOneLine, getFileLink, isCanvasNode, mdLinkEscape, ParamEventRegister, registerCanvasMenuItem } from './utils';
 import { EN_US, i18nText, ZH_CN } from './i18n';
@@ -27,12 +27,8 @@ export const EVENT_copyCanvasCardReferenceMenu: ParamEventRegister = registerCan
 		icon: "link",
 		section: "action",
 		onClick: (canvas: Canvas, _item: MenuItem, _event: KeyboardEvent | MouseEvent) => {
-			// Conditions to check
-			const result = getActiveCanvasView(canvas.app);
-			if (!result) return;
-
 			// Copy card reference
-			const { file } = result
+			const file = (canvas.view as CanvasView).file
 			copyCanvasCardReference(canvas, file, canvas.app);
 		}
 	}
