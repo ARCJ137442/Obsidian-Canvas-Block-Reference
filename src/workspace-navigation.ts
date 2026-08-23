@@ -54,12 +54,13 @@ export async function openCanvasAndFocusNode(
 	canvasPath: string,
 	nodeId: string,
 	preferOtherWindow = false,
+	sourceWindowArg?: Window | null,
 ): Promise<boolean> {
 	const file = app.vault.getAbstractFileByPath(canvasPath);
 	// 📌 用结构守卫而非 instanceof TFile，保持「obsidian 仅类型导入」。
 	if (!isCanvasFile(file)) return false;
 
-	const result = await openOrFocusFileLeaf(app, file as TFile, preferOtherWindow);
+	const result = await openOrFocusFileLeaf(app, file as TFile, preferOtherWindow, sourceWindowArg);
 	if (!result) return false;
 
 	// 📌 从别的标签页/窗口切换过来时，canvas 需要先成为活动视图，未激活前 select 不生效。
@@ -125,8 +126,13 @@ function rotationNodeBBox(node: CanvasNodeLike): { minX: number; minY: number; m
  * preferOtherWindow：从仪表盘等「锚定窗口」跳转时，优先使用「不在源窗口」的已开标签页，
  * 无已开时尽量在其他窗口新建标签页——避免反复切换仪表盘所在窗口的聚焦。
  */
-async function openOrFocusFileLeaf(app: App, file: TFile, preferOtherWindow = false): Promise<LeafNavigationResult | undefined> {
-	const sourceWin = app.workspace.containerEl?.ownerDocument?.defaultView ?? null;
+async function openOrFocusFileLeaf(
+	app: App,
+	file: TFile,
+	preferOtherWindow = false,
+	sourceWindowArg?: Window | null,
+): Promise<LeafNavigationResult | undefined> {
+	const sourceWin = sourceWindowArg ?? sourceWindow(app);
 	const leaves = new Set<WorkspaceLeaf>();
 	const viewType = fileViewType(file);
 	if (viewType) {
@@ -169,6 +175,20 @@ async function openOrFocusFileLeaf(app: App, file: TFile, preferOtherWindow = fa
 	return { leaf, mode: "opened-new" };
 }
 
+/**
+ * 导航的源窗口：取活动 leaf 所在窗口（仪表盘等可能位于 popout 窗口，不能从
+ * app.workspace.containerEl 推断主窗口），兜底用工作区窗口。
+ */
+function sourceWindow(app: App): Window | null {
+	try {
+		const win = app.workspace.activeLeaf?.getContainer().win;
+		if (win) return win;
+	} catch {
+		// fall through
+	}
+	return app.workspace.containerEl?.ownerDocument?.defaultView ?? null;
+}
+
 /** 返回 leaf 所属窗口。 */
 function leafWindow(leaf: WorkspaceLeaf): Window | null {
 	try {
@@ -178,8 +198,10 @@ function leafWindow(leaf: WorkspaceLeaf): Window | null {
 	}
 }
 
-/** 找一个「非 excludeWin」的窗口（跨窗口跳转用）。 */
+/** 找一个「非 excludeWin」的窗口（跨窗口跳转用）；源非主窗口时优先主窗口。 */
 function findOtherWindow(app: App, excludeWin: Window | null): Window | null {
+	const mainWin = app.workspace.containerEl?.ownerDocument?.defaultView ?? null;
+	if (mainWin && mainWin !== excludeWin) return mainWin;
 	let other: Window | null = null;
 	app.workspace.iterateAllLeaves((leaf) => {
 		if (other) return;
@@ -189,11 +211,16 @@ function findOtherWindow(app: App, excludeWin: Window | null): Window | null {
 	return other;
 }
 
-/** 在指定窗口创建标签页（getLeaf 运行时支持 window 参数，类型未暴露，用结构调用）。 */
+/** 在指定窗口创建标签页：先激活该窗口里的一个 leaf，再 getLeaf("tab") 就落在该窗口。 */
 function createLeafInWindow(app: App, win: Window): WorkspaceLeaf | undefined {
 	try {
-		const getLeaf = app.workspace.getLeaf as unknown as (pane: string, window: Window) => WorkspaceLeaf;
-		return getLeaf("tab", win) ?? undefined;
+		let targetLeaf: WorkspaceLeaf | undefined;
+		app.workspace.iterateAllLeaves((leaf) => {
+			if (targetLeaf) return;
+			if (leafWindow(leaf) === win) targetLeaf = leaf;
+		});
+		if (targetLeaf) app.workspace.setActiveLeaf(targetLeaf, { focus: true });
+		return app.workspace.getLeaf("tab") ?? undefined;
 	} catch {
 		return undefined;
 	}

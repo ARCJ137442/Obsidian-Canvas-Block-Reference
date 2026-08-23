@@ -100,10 +100,11 @@ export default class CanvasReferencePlugin extends Plugin {
 
 	/**
 	 * 聚焦白板中的指定节点（打开/切窗、等渲染、选中并缩放），供 life-panel 点击任务项调用。
-	 * preferOtherWindow：从仪表盘等锚定窗口跳转时，优先用其他窗口打开/聚焦。
+	 * preferOtherWindow：从仪表盘等锚定窗口跳转时，优先用其他窗口打开/聚焦；
+	 * sourceWindowArg 由调用方显式传入「源窗口」（仪表盘所在窗口）。
 	 */
-	focusNode(canvasPath: string, nodeId: string, preferOtherWindow = false): Promise<boolean> {
-		return openCanvasAndFocusNode(this.app, canvasPath, nodeId, preferOtherWindow)
+	focusNode(canvasPath: string, nodeId: string, preferOtherWindow = false, sourceWindowArg?: Window | null): Promise<boolean> {
+		return openCanvasAndFocusNode(this.app, canvasPath, nodeId, preferOtherWindow, sourceWindowArg)
 	}
 
 	async updateRotationColor(color: RotationColorCondition): Promise<void> {
