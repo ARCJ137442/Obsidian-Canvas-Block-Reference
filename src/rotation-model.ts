@@ -143,7 +143,8 @@ export function rotationTargetIndex(
 		case "canvas":
 			return direction < 0
 				? (anchor.start - 1 + length) % length
-				: anchor.start;
+				// 📌 start 可能等于 length（活动板无匹配节点且为最后一块时越界），取模回环。
+				: anchor.start % length;
 		case "none":
 			return direction < 0 ? length - 1 : 0;
 	}

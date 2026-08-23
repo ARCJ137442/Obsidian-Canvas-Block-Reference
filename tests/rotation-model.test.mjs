@@ -86,6 +86,12 @@ test("rotationTargetIndex handles the no-canvas anchor and empty sequence", () =
 	assert.equal(rotationTargetIndex({ kind: "none" }, 1, 0), undefined)
 })
 
+test("rotationTargetIndex wraps when a boundary points past the last node", () => {
+	// 活动板无匹配节点且为序列最后一块：start === length，next 应回环到 0 而非越界。
+	assert.equal(rotationTargetIndex({ kind: "canvas", start: 10 }, 1, 10), 0)
+	assert.equal(rotationTargetIndex({ kind: "canvas", start: 10 }, -1, 10), 9)
+})
+
 test("parseRotationDocument keeps node coordinates and rejects invalid JSON", () => {
 	const doc = parseRotationDocument(JSON.stringify({
 		nodes: [{ id: "n1", type: "text", x: 100, y: 200, width: 300, height: 120, color: "3" }],
