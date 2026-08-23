@@ -10,11 +10,23 @@ type LeafNavigationResult = {
 };
 
 /** Canvas 视图的最小结构化类型；Obsidian 未公开完整 CanvasView 类型。 */
-type CanvasNodeLike = { id: string };
+type CanvasNodeLike = {
+	id: string;
+	x?: number;
+	y?: number;
+	width?: number;
+	height?: number;
+	getBBox?(): { minX: number; minY: number; maxX: number; maxY: number };
+};
 type CanvasLike = {
 	nodes: Map<string, CanvasNodeLike>;
 	selectOnly(node: CanvasNodeLike): void;
 	zoomToSelection(): void;
+	zoomToBbox?(bbox: { minX: number; minY: number; maxX: number; maxY: number }): void;
+	panTo?(x: number, y: number): void;
+	requestFrame?(callback: () => void): void;
+	getViewportBBox?(): { minX: number; minY: number; maxX: number; maxY: number };
+	selection?: Set<CanvasNodeLike>;
 };
 type CanvasViewLike = { getViewType(): string; canvas: CanvasLike };
 
@@ -45,15 +57,62 @@ export async function openCanvasAndFocusNode(app: App, canvasPath: string, nodeI
 	const result = await openOrFocusFileLeaf(app, file as TFile);
 	if (!result) return false;
 
-	const canvas = await waitForCanvasNode(result.leaf, nodeId);
-	if (!canvas) return false;
+	// 📌 从别的标签页/窗口切换过来时，canvas 需要先成为活动视图，未激活前 select 不生效。
+	await waitForActiveCanvas(app, canvasPath);
 
-	const node = canvas.nodes.get(nodeId);
+	// 📌 等节点出现在 canvas.nodes 后，从 leaf 取「活」的 canvas 与节点，
+	// 避免捕获到被替换的视图/对象（新开标签页尤其容易踩到）。
+	const waitCanvas = await waitForCanvasNode(app, result.leaf, nodeId);
+	if (!waitCanvas) return false;
+	const liveView = result.leaf.view as unknown as CanvasViewLike | undefined;
+	const liveCanvas = liveView?.getViewType() === "canvas" && liveView.canvas ? liveView.canvas : waitCanvas;
+	const node = liveCanvas.nodes.get(nodeId);
 	if (!node) return false;
 
-	canvas.selectOnly(node);
-	canvas.zoomToSelection();
+	// 📌 Obsidian canvas 懒渲染：新开标签页里目标节点可能还没渲染出来，
+	// 未渲染节点 select 不生效。先缩放到节点所在区域触发渲染。
+	const bbox = rotationNodeBBox(node);
+	if (bbox && typeof liveCanvas.zoomToBbox === "function") {
+		liveCanvas.zoomToBbox(bbox);
+	} else if (typeof liveCanvas.panTo === "function") {
+		liveCanvas.panTo(node.x ?? 0, node.y ?? 0);
+	}
+
+	// 📌 事件驱动：渲染帧循环里「缩放节点区域 + 选中」直至生效（新标签页需反复触发渲染）。
+	let selected = false;
+	for (let attempt = 0; attempt < 60 && !selected; attempt++) {
+		if (bbox && typeof liveCanvas.zoomToBbox === "function") liveCanvas.zoomToBbox(bbox);
+		liveCanvas.selectOnly(node);
+		selected = (liveCanvas.selection?.size ?? 0) > 0;
+		if (!selected) await nextWindowFrame(app);
+	}
+	if (!selected) return true;
+
+	// 📌 选中成功后，用 canvas 自身的渲染循环缩放聚焦整个视图到节点（F 键同款 zoomToSelection），
+	// 并用「视口宽度是否收窄到节点附近」校验；未聚焦则继续重试，直到生效。
+	for (let zoomAttempt = 0; zoomAttempt < 24; zoomAttempt++) {
+		await nextCanvasFrame(liveCanvas, app);
+		liveCanvas.zoomToSelection();
+		await nextWindowFrame(app);
+		const viewport = liveCanvas.getViewportBBox?.();
+		const nodeBBox = typeof node.getBBox === "function" ? node.getBBox() : undefined;
+		if (!viewport || !nodeBBox) continue;
+		const viewWidth = viewport.maxX - viewport.minX;
+		const nodeWidth = nodeBBox.maxX - nodeBBox.minX;
+		if (viewWidth > 0 && viewWidth < nodeWidth * 8) return true;
+	}
 	return true;
+}
+
+/** 用节点数据坐标（x/y/width/height）构造包围盒。 */
+function rotationNodeBBox(node: CanvasNodeLike): { minX: number; minY: number; maxX: number; maxY: number } | undefined {
+	if (node.x === undefined || node.y === undefined) return undefined;
+	return {
+		minX: node.x,
+		minY: node.y,
+		maxX: node.x + (node.width ?? 0),
+		maxY: node.y + (node.height ?? 0),
+	};
 }
 
 async function openOrFocusFileLeaf(app: App, file: TFile): Promise<LeafNavigationResult | undefined> {
@@ -80,7 +139,23 @@ async function openOrFocusFileLeaf(app: App, file: TFile): Promise<LeafNavigatio
 	return { leaf, mode: "opened-new" };
 }
 
-async function waitForCanvasNode(leaf: WorkspaceLeaf, nodeId: string): Promise<CanvasLike | undefined> {
+/**
+ * 事件驱动：等目标 canvas 成为活动视图。
+ * 判断活动 leaf 的视图是否为该 canvas（不能用 getActiveFile——仪表盘等无文件视图会返回旧文件，导致误判已激活）。
+ * 用窗口动画帧循环等待（非固定 sleep、不依赖可能不触发的事件，保证不挂起）。
+ */
+async function waitForActiveCanvas(app: App, canvasPath: string): Promise<void> {
+	const win = app.workspace.containerEl.ownerDocument.defaultView ?? globalThis;
+	const isActiveCanvas = () => {
+		const view = app.workspace.activeLeaf?.view as { getViewType(): string; file?: { path: string } } | null;
+		return Boolean(view && view.getViewType() === "canvas" && view.file?.path === canvasPath);
+	};
+	for (let i = 0; i < 120 && !isActiveCanvas(); i++) {
+		await new Promise<void>((resolve) => win.requestAnimationFrame(() => resolve()));
+	}
+}
+
+async function waitForCanvasNode(app: App, leaf: WorkspaceLeaf, nodeId: string): Promise<CanvasLike | undefined> {
 	const deadline = Date.now() + CANVAS_RENDER_TIMEOUT_MS;
 	while (Date.now() < deadline) {
 		const view = leaf.view as unknown as CanvasViewLike | undefined;
@@ -88,13 +163,38 @@ async function waitForCanvasNode(leaf: WorkspaceLeaf, nodeId: string): Promise<C
 			const canvas = view.canvas;
 			if (canvas && canvas.nodes.has(nodeId)) return canvas;
 		}
-		await sleep(CANVAS_RENDER_POLL_MS);
+		// 事件驱动：等下一渲染帧，而非固定 sleep。
+		await nextWindowFrame(app);
 	}
 	return undefined;
 }
 
-function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
+/** 事件驱动：等工作区窗口的下一动画帧（requestAnimationFrame，可靠触发）。 */
+function nextWindowFrame(app: App): Promise<void> {
+	const win = app.workspace.containerEl.ownerDocument.defaultView ?? globalThis;
+	return new Promise((resolve) => {
+		if (typeof win.requestAnimationFrame === "function") {
+			win.requestAnimationFrame(() => resolve());
+		} else {
+			resolve();
+		}
+	});
+}
+
+/** 事件驱动：等 canvas 自身渲染帧或窗口动画帧（竞速，任一先到即返回，保证不挂起）。 */
+function nextCanvasFrame(canvas: CanvasLike, app: App): Promise<void> {
+	return new Promise((resolve) => {
+		let done = false;
+		const finish = () => {
+			if (done) return;
+			done = true;
+			resolve();
+		};
+		if (typeof canvas.requestFrame === "function") canvas.requestFrame(finish);
+		const win = app.workspace.containerEl.ownerDocument.defaultView ?? globalThis;
+		if (typeof win.requestAnimationFrame === "function") win.requestAnimationFrame(finish);
+		else finish();
+	});
 }
 
 function isCanvasFile(file: unknown): file is { path: string; extension: string } {
