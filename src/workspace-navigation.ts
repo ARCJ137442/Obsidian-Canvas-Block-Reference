@@ -49,12 +49,17 @@ export function findOpenFileLeaf<T extends FileLeaf>(leaves: Iterable<T>, path: 
  * 轮换聚焦的核心导航：确定目标后「聚焦窗口 → 聚焦／新开标签页 → 聚焦节点」。
  * 打开白板后等待其渲染出目标节点，再选中并缩放到它。
  */
-export async function openCanvasAndFocusNode(app: App, canvasPath: string, nodeId: string): Promise<boolean> {
+export async function openCanvasAndFocusNode(
+	app: App,
+	canvasPath: string,
+	nodeId: string,
+	preferOtherWindow = false,
+): Promise<boolean> {
 	const file = app.vault.getAbstractFileByPath(canvasPath);
 	// 📌 用结构守卫而非 instanceof TFile，保持「obsidian 仅类型导入」。
 	if (!isCanvasFile(file)) return false;
 
-	const result = await openOrFocusFileLeaf(app, file as TFile);
+	const result = await openOrFocusFileLeaf(app, file as TFile, preferOtherWindow);
 	if (!result) return false;
 
 	// 📌 从别的标签页/窗口切换过来时，canvas 需要先成为活动视图，未激活前 select 不生效。
@@ -115,19 +120,44 @@ function rotationNodeBBox(node: CanvasNodeLike): { minX: number; minY: number; m
 	};
 }
 
-async function openOrFocusFileLeaf(app: App, file: TFile): Promise<LeafNavigationResult | undefined> {
+/**
+ * 打开/聚焦文件标签页。
+ * preferOtherWindow：从仪表盘等「锚定窗口」跳转时，优先使用「不在源窗口」的已开标签页，
+ * 无已开时尽量在其他窗口新建标签页——避免反复切换仪表盘所在窗口的聚焦。
+ */
+async function openOrFocusFileLeaf(app: App, file: TFile, preferOtherWindow = false): Promise<LeafNavigationResult | undefined> {
+	const sourceWin = app.workspace.containerEl?.ownerDocument?.defaultView ?? null;
 	const leaves = new Set<WorkspaceLeaf>();
 	const viewType = fileViewType(file);
 	if (viewType) {
 		for (const leaf of app.workspace.getLeavesOfType(viewType)) leaves.add(leaf);
 	}
 	app.workspace.iterateAllLeaves((leaf) => leaves.add(leaf));
-	const existing = findOpenFileLeaf(leaves, file.path);
+
+	// 优先：已打开的标签页；preferOtherWindow 时优先选择不在源窗口的标签页。
+	let existing = findOpenFileLeaf(leaves, file.path);
+	if (existing && preferOtherWindow && leafWindow(existing) === sourceWin) {
+		const otherLeaf = [...leaves].find((leaf) => leafWindow(leaf) !== sourceWin && findOpenFileLeaf([leaf], file.path));
+		if (otherLeaf) existing = otherLeaf;
+	}
 	if (existing) {
 		await app.workspace.revealLeaf(existing);
 		app.workspace.setActiveLeaf(existing, { focus: true });
 		existing.getContainer().win.focus();
 		return { leaf: existing, mode: "focused-existing" };
+	}
+
+	// 新建标签页；preferOtherWindow 且有其他窗口时，在其他窗口创建。
+	if (preferOtherWindow) {
+		const otherWin = findOtherWindow(app, sourceWin);
+		const otherLeaf = otherWin ? createLeafInWindow(app, otherWin) : undefined;
+		if (otherLeaf) {
+			await otherLeaf.openFile(file);
+			await app.workspace.revealLeaf(otherLeaf);
+			app.workspace.setActiveLeaf(otherLeaf, { focus: true });
+			otherLeaf.getContainer().win.focus();
+			return { leaf: otherLeaf, mode: "opened-new" };
+		}
 	}
 
 	const leaf = app.workspace.getLeaf("tab");
@@ -137,6 +167,36 @@ async function openOrFocusFileLeaf(app: App, file: TFile): Promise<LeafNavigatio
 	app.workspace.setActiveLeaf(leaf, { focus: true });
 	leaf.getContainer().win.focus();
 	return { leaf, mode: "opened-new" };
+}
+
+/** 返回 leaf 所属窗口。 */
+function leafWindow(leaf: WorkspaceLeaf): Window | null {
+	try {
+		return leaf.getContainer().win ?? null;
+	} catch {
+		return null;
+	}
+}
+
+/** 找一个「非 excludeWin」的窗口（跨窗口跳转用）。 */
+function findOtherWindow(app: App, excludeWin: Window | null): Window | null {
+	let other: Window | null = null;
+	app.workspace.iterateAllLeaves((leaf) => {
+		if (other) return;
+		const win = leafWindow(leaf);
+		if (win && win !== excludeWin) other = win;
+	});
+	return other;
+}
+
+/** 在指定窗口创建标签页（getLeaf 运行时支持 window 参数，类型未暴露，用结构调用）。 */
+function createLeafInWindow(app: App, win: Window): WorkspaceLeaf | undefined {
+	try {
+		const getLeaf = app.workspace.getLeaf as unknown as (pane: string, window: Window) => WorkspaceLeaf;
+		return getLeaf("tab", win) ?? undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 /**
