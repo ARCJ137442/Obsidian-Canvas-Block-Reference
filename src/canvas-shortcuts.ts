@@ -35,6 +35,8 @@ export interface CanvasShortcutSettings {
 	/** Index is the Markdown title level (0~9); value is a KeyboardEvent.code. */
 	formatTitle: string[]
 	splitList: string
+	/** 白板内轮换聚焦（当前白板）：单按前进、Shift 后退。 */
+	rotationNext: string
 }
 
 export type CanvasShortcutSettingKey = keyof CanvasShortcutSettings
@@ -44,7 +46,7 @@ export type CanvasShortcutFamilySettingKey = "edit" | "cancelSelection" | "forma
 export type CanvasShortcutId =
 	| "edit" | "deleteSelection" | "cancelSelection" | "cycleColor" | "directional"
 	| "extend" | "focus" | "zoom" | "createEdge" | "compactLayout" | "counter"
-	| "formatTitle" | "splitList"
+	| "formatTitle" | "splitList" | "rotationNext"
 
 export const DEFAULT_CANVAS_SHORTCUT_SETTINGS: CanvasShortcutSettings = {
 	edit: ["Space", "Enter"],
@@ -63,6 +65,7 @@ export const DEFAULT_CANVAS_SHORTCUT_SETTINGS: CanvasShortcutSettings = {
 	counter: "KeyY",
 	formatTitle: ["Digit0", "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9"],
 	splitList: "KeyK",
+	rotationNext: "KeyG",
 }
 
 /** Actions that use one configurable key. Key families are rendered separately in settings. */
@@ -84,6 +87,7 @@ export const CONFIGURABLE_CANVAS_SHORTCUTS: ReadonlyArray<{
 	{ id: "compactLayout", name: "紧凑布局", description: "默认使用 Ctrl+Shift+Alt+E" },
 	{ id: "counter", name: "CTDP 计数", description: "按下 Shift 时清零" },
 	{ id: "splitList", name: "拆分 Markdown 列表", description: "默认使用 Shift+K" },
+	{ id: "rotationNext", name: "轮换聚焦（当前白板）", description: "单按前进到下一个匹配节点，Shift 后退；改绑或清除可禁用" },
 ]
 
 export const CANVAS_SHORTCUTS = createCanvasShortcutDefinitions(DEFAULT_CANVAS_SHORTCUT_SETTINGS)
@@ -127,13 +131,14 @@ function createCanvasShortcutDefinitions(settings: CanvasShortcutSettings): Reco
 		// Shift/Ctrl/Meta remain disallowed so ordinary editor shortcuts are not swallowed.
 		formatTitle: { codes: settings.formatTitle, shift: false, ctrl: false, alt: "any", meta: false },
 		splitList: { codes: [settings.splitList], shift: true, ctrl: false, alt: false, meta: false },
+		rotationNext: { codes: [settings.rotationNext], shift: "any", ctrl: false, alt: false, meta: false },
 	}
 }
 
 const CANVAS_SHORTCUT_ORDER: CanvasShortcutId[] = [
 	"edit", "deleteSelection", "cancelSelection", "cycleColor", "directional",
 	"extend", "focus", "zoom", "createEdge", "compactLayout", "counter",
-	"formatTitle", "splitList",
+	"formatTitle", "splitList", "rotationNext",
 ]
 
 export function getCanvasShortcutId(
@@ -202,6 +207,7 @@ export function getShortcutCodes(settings: CanvasShortcutSettings, id: CanvasSho
 		case "counter": return [settings.counter]
 		case "formatTitle": return settings.formatTitle
 		case "splitList": return [settings.splitList]
+		case "rotationNext": return [settings.rotationNext]
 	}
 }
 
@@ -245,6 +251,7 @@ export function withCanvasShortcutCode(
 		case "compactLayout": return { ...settings, compactLayout: code }
 		case "counter": return { ...settings, counter: code }
 		case "splitList": return { ...settings, splitList: code }
+		case "rotationNext": return { ...settings, rotationNext: code }
 	}
 }
 
@@ -309,6 +316,7 @@ export function normalizeCanvasShortcutSettings(value: unknown): CanvasShortcutS
 		counter: stringValue(source.counter, DEFAULT_CANVAS_SHORTCUT_SETTINGS.counter),
 		formatTitle: fixedStringArray(source.formatTitle, DEFAULT_CANVAS_SHORTCUT_SETTINGS.formatTitle, 10),
 		splitList: stringValue(source.splitList, DEFAULT_CANVAS_SHORTCUT_SETTINGS.splitList),
+		rotationNext: stringValue(source.rotationNext, DEFAULT_CANVAS_SHORTCUT_SETTINGS.rotationNext),
 	}
 }
 

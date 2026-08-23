@@ -20,12 +20,18 @@ import type { Canvas } from 'obsidian/canvas';
 import { canPropagateCanvasShortcut, DEFAULT_CANVAS_SHORTCUT_SETTINGS, normalizeCanvasShortcutSettings, withCanvasShortcutCode } from './canvas-shortcuts';
 import type { CanvasShortcutSettingKey, CanvasShortcutSettings } from './canvas-shortcuts';
 import { CanvasShortcutSettingTab } from './settings';
+import { NodeRotationService } from './node-rotation';
+import { isRotationColorCondition } from './rotation-model';
+import type { RotationColorCondition } from './rotation-model';
 // import { CMD_selectAllEdgesInCanvas } from './commands/select-all-edges';
 // ! ✅「选择所有连边」的功能，在AdvancedCanvas中有了
 
 export default class CanvasReferencePlugin extends Plugin {
 	private settings: CanvasShortcutSettings = DEFAULT_CANVAS_SHORTCUT_SETTINGS
 	private persistedData: Record<string, unknown> = {}
+	/** 轮换聚焦条件，供设置页读取与外部插件联动；默认黄色。 */
+	rotationColor: RotationColorCondition = "3"
+	private _nodeRotation!: NodeRotationService
 
 	async onload(): Promise<void> {
 		const loadedData = await this.loadData() as unknown
@@ -33,6 +39,9 @@ export default class CanvasReferencePlugin extends Plugin {
 			this.persistedData = { ...(loadedData as Record<string, unknown>) }
 			this.settings = normalizeCanvasShortcutSettings(this.persistedData.shortcuts)
 		}
+		this.rotationColor = normalizeRotationColor(this.persistedData.rotationColor)
+		this._nodeRotation = new NodeRotationService(this.app, () => ({ rotationColor: this.rotationColor }))
+		this.registerRotationCommands()
 		this.addSettingTab(new CanvasShortcutSettingTab(this.app, this))
 
 		// 功能：链接寻路
@@ -65,6 +74,40 @@ export default class CanvasReferencePlugin extends Plugin {
 		this.clearAllKeyboardStates()
 		this.persistedData.shortcuts = this.settings
 		await this.saveData(this.persistedData)
+	}
+
+	/** 对外公开的轮换服务：供 life-panel 等插件把自定义白板集合传入轮换。 */
+	get nodeRotation(): NodeRotationService {
+		return this._nodeRotation
+	}
+
+	async updateRotationColor(color: RotationColorCondition): Promise<void> {
+		this.rotationColor = color
+		this.persistedData.rotationColor = color
+		await this.saveData(this.persistedData)
+	}
+
+	private registerRotationCommands(): void {
+		this.addCommand({
+			id: "node-rotation-current-next",
+			name: "轮换聚焦·下一个匹配节点（当前白板）",
+			callback: () => void this.nodeRotation.advance(1, "current"),
+		})
+		this.addCommand({
+			id: "node-rotation-current-previous",
+			name: "轮换聚焦·上一个匹配节点（当前白板）",
+			callback: () => void this.nodeRotation.advance(-1, "current"),
+		})
+		this.addCommand({
+			id: "node-rotation-open-next",
+			name: "轮换聚焦·下一个匹配节点（已打开白板）",
+			callback: () => void this.nodeRotation.advance(1, "open"),
+		})
+		this.addCommand({
+			id: "node-rotation-open-previous",
+			name: "轮换聚焦·上一个匹配节点（已打开白板）",
+			callback: () => void this.nodeRotation.advance(-1, "open"),
+		})
 	}
 
 	private clearAllKeyboardStates(): void {
@@ -128,6 +171,9 @@ export default class CanvasReferencePlugin extends Plugin {
 						zoomCanvas = zoomTarget
 						zoomShiftFallback = shiftKey
 						zoomController.start()
+					},
+					rotate: (rotateCanvas, direction) => {
+						void this.nodeRotation.advanceFromCanvas(rotateCanvas, direction)
 					},
 				}, this.settings)
 				if (handled) {
@@ -280,4 +326,8 @@ export default class CanvasReferencePlugin extends Plugin {
 
 		this.register(around(suggest.constructor.prototype, suggestAround(suggest, app)));
 	}
+}
+
+function normalizeRotationColor(value: unknown): RotationColorCondition {
+	return isRotationColorCondition(value) ? value : "3";
 }

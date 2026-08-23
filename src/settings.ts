@@ -7,6 +7,20 @@ import {
 	getCanvasShortcutConflicts,
 } from "./canvas-shortcuts"
 import type { CanvasShortcutFamilySettingKey, CanvasShortcutSettingKey } from "./canvas-shortcuts"
+import type { RotationColorCondition } from "./rotation-model"
+
+const ROTATION_COLOR_OPTIONS: ReadonlyArray<{ value: RotationColorCondition; label: string }> = [
+	{ value: "all", label: "全部颜色" },
+	{ value: "default", label: "默认" },
+	{ value: "1", label: "红" },
+	{ value: "2", label: "橙" },
+	{ value: "3", label: "黄" },
+	{ value: "4", label: "绿" },
+	{ value: "5", label: "青" },
+	{ value: "6", label: "紫" },
+	{ value: "black", label: "黑" },
+	{ value: "white", label: "白" },
+]
 
 const MODIFIER_CODES = new Set([
 	"ShiftLeft", "ShiftRight",
@@ -47,6 +61,21 @@ export class CanvasShortcutSettingTab extends PluginSettingTab {
 				definition.name,
 			)
 		}
+
+		containerEl.createEl("h3", { text: "轮换聚焦" })
+		containerEl.createEl("p", {
+			text: "在「当前白板」「已打开白板」轮换聚焦中，只跳到匹配此颜色的节点；默认黄色。自定义 CSS 颜色严格精确匹配。",
+			cls: "setting-item-description",
+		})
+		new Setting(containerEl)
+			.setName("轮换聚焦条件")
+			.setDesc("轮换聚焦只跳到匹配此颜色的节点。")
+			.addDropdown((dropdown) => {
+				for (const option of ROTATION_COLOR_OPTIONS) dropdown.addOption(option.value, option.label)
+				dropdown.setValue(this.plugin.rotationColor).onChange(async (value) => {
+					await this.plugin.updateRotationColor(value as RotationColorCondition)
+				})
+			})
 
 		this.addShortcutFamily(
 			containerEl,

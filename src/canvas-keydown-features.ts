@@ -13,6 +13,8 @@ import { createCanvasTextNode } from "./canvas-node-operations";
 
 export interface CanvasKeyboardActions {
 	startContinuousZoom?: (canvas: Canvas, shiftKey: boolean) => void;
+	/** 轮换聚焦（当前白板）：direction=1 前进、-1 后退。 */
+	rotate?: (canvas: Canvas, direction: -1 | 1) => void;
 }
 
 // 独立出的功能：白板中键盘按下的功能
@@ -450,6 +452,10 @@ export function onCanvasKeyDown(
 		}
 
 		}, { refresh: false })
+	}
+	// 轮换聚焦（当前白板）：单按前进、Shift 后退；实际动作由插件注入的 actions.rotate 执行。
+	if (shortcutId === "rotationNext") {
+		actions.rotate?.(canvas, shiftKey ? -1 : 1)
 	}
 	return true
 }

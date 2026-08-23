@@ -11,6 +11,7 @@
 	},
 	"include": [
 		"../src/canvas-context.ts",
+		"../src/rotation-model.ts",
 		"../src/canvas-shortcuts.ts",
 		"../src/canvas-mutations.ts",
 		"../src/uuid.ts",
