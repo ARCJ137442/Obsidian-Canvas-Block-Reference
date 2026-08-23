@@ -68,3 +68,50 @@
 6. 输入框、编辑态、Modal/设置外部 DOM 不触发。
 7. 长按/keyup/Shift 动态方向正确。
 8. blur、visibilitychange、reload 后没有卡死状态或双倍操作。
+
+## 鼠标路径（选择切换自动连边）
+
+> 最后更新：2026-08-23
+
+按住「连接触发键」（默认 Ctrl，可配置）时，点击/双击白板自动为 源→目标 创建最近锚点单向连边。实现见 `src/canvas-mouse-features.ts` + `src/canvas-mouse-util.ts`；最近锚点复用 `calculateNearestLinkSides`（`src/canvas-edge-operations.ts`）。
+
+**源（source）** = pointerdown 捕获的当前选中（快照）；若选区不可靠（链式双击时前一个节点常被原生清出选区），退化为**最近锚点** `tracker.lastAnchor`（上一次连边/创建的目标节点）。**目标** = 被点击节点（路径 A 自切换选中）或双击空白创建的新节点（路径 B / 延时 `tryDeferredConnect`）。
+
+### 性能边界（领域展开）
+
+事件处理**平时零开销**：pointerdown/click/dblclick 的第一行就检查 `isConnectorHeld`（修饰键读 `event.ctrlKey`，普通键读 keydown/keyup 追踪），**未按下连接键直接 return**，不做 `getCanvasFromEvent`/快照/查找。只有按下连接键才跑完整逻辑。
+
+### 会话生命周期
+
+- 按下连接键：只置 held 标记，**不动节点/边/选区**（纯后台标记）。
+- 松开连接键（keyup）或 blur/visibilitychange：清空 held + 快照 + `lastAnchor`，结束本次连边会话，避免遗留状态与后续意外连边。
+
+### 与键盘路径的有意差异
+
+| 项 | 键盘路径 | 鼠标路径 |
+|---|---|---|
+| 编辑态闸门 | `isCanvasEditing` 拒绝 | **不用**——链式连按恰好在编辑态发生 |
+| Ctrl/Alt/Meta | shortcut matcher 要求 false | 连接触发键（默认 Ctrl）正是触发条件 |
+| 事件处理 | 命中后 preventDefault/stopImmediatePropagation | **绝不 preventDefault**，纯叠加副作用 |
+
+### 鼠标路径必须拒绝的负路径
+
+| 路径 | 保护方式 |
+|---|---|
+| 未按连接键 | 处理器入口直接短路（零开销） |
+| Modal、命令面板、搜索框、设置页 | `getCanvasFromEvent` 返回空 |
+| 其他 Canvas 窗口 | ownerDocument/defaultView 隔离 |
+| 窗口失焦、Document 隐藏、窗口关闭 | 清空 held + 快照 + 锚点 |
+
+### 鼠标路径最低回归矩阵
+
+每次修改白板鼠标路径至少验证：
+
+1. 主窗口 Ctrl+点击已存在节点 → 源选中连到该节点。
+2. 主窗口 Ctrl+双击空白 → 原生建节点 + 源连到新节点，新节点编辑态不被打断。
+3. 独立窗口同一操作等效。
+4. 按住连接键连续双击 → 链式 A→B→C（源退化为锚点）。
+5. 无连接键 / Alt / Meta + 点击 → 原生行为、零连边、零解析开销。
+6. 松开连接键后再操作 → 无遗留连边。
+7. 连接键设为「已禁用」→ 鼠标解析完全短路。
+8. blur、visibilitychange、reload 后无残留状态或双倍连边。

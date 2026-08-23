@@ -1,4 +1,4 @@
-import { Plugin, TFile, ViewState, WorkspaceLeaf } from 'obsidian';
+import { Notice, Plugin, TFile, ViewState, WorkspaceLeaf } from 'obsidian';
 import { around } from "monkey-around";
 import { CMD_copyCanvasElementReference, EVENT_copyCanvasCardReferenceMenu } from './copy-canvas-element-reference';
 import { openingFile } from './canvas-link-redirection';
@@ -11,7 +11,9 @@ import { CMD_adjustEdgeOnside, CMD_toggleNodeEdgeSelect, EVENT_adjustEdgeOnside,
 import { packRectangles } from './brickLayout';
 import { CMD_flipCanvasElementsH, CMD_flipCanvasElementsV, EVENT_flipCanvasElementsH, EVENT_flipCanvasElementsV } from './flip-canvas-nodes';
 import { onCanvasKeyDown } from './canvas-keydown-features';
-import { canHandleCanvasKeyboardEvent, getCanvasFromEvent } from './canvas-context';
+import { canHandleCanvasKeyboardEvent, getCanvasFromEvent, isEditableTarget } from './canvas-context';
+import { findClickedNode, onCanvasPointerDown, onCanvasSelectionSwitch, onConnectorNodeClick, tryDeferredConnect } from './canvas-mouse-features';
+import { isConnectorActive, SelectionSwitchTracker } from './canvas-mouse-util';
 import { createContinuousZoomController } from './canvas-zoom';
 import type { ContinuousZoomController } from './canvas-zoom';
 import { KeyboardEventGuard } from './keyboard-event-guard';
@@ -36,6 +38,13 @@ export default class CanvasReferencePlugin extends Plugin {
 	rotationColor: RotationColorCondition = "3"
 	/** 颜色→任务语义，供设置页与 life-panel 等扩展读取；与轮换聚焦条件独立。 */
 	colorSemantics: ColorSemantics = { ...DEFAULT_COLOR_SEMANTICS }
+	/** 选择切换自动连边：连接触发键（KeyboardEvent.code，默认 ControlLeft；空串 = 禁用，可在设置按 Esc 设为禁用）。 */
+	private connectorCode = "ControlLeft"
+
+	private mouseEventWindows = new WindowRegistrationRegistry<Window>()
+	private connectorHeldStates = new Map<Window, { held: boolean }>()
+	private mouseWindowCleanups = new Map<Window, () => void>()
+
 	private _nodeRotation!: NodeRotationService
 
 	async onload(): Promise<void> {
@@ -46,6 +55,7 @@ export default class CanvasReferencePlugin extends Plugin {
 		}
 		this.rotationColor = normalizeRotationColor(this.persistedData.rotationColor)
 		this.colorSemantics = normalizeColorSemantics(this.persistedData.colorSemantics)
+		this.connectorCode = normalizeString(this.persistedData.connectorCode, "ControlLeft")
 		this._nodeRotation = new NodeRotationService(this.app, () => ({ rotationColor: this.rotationColor }))
 		this.registerRotationCommands()
 		this.addSettingTab(new CanvasShortcutSettingTab(this.app, this))
@@ -63,6 +73,7 @@ export default class CanvasReferencePlugin extends Plugin {
 		this.registerEvents();
 
 		this.registerCanvasKeyListeners()
+		this.registerCanvasMouseListeners()
 	}
 
 	private keyEventWindows = new WindowRegistrationRegistry<Window>()
@@ -95,6 +106,19 @@ export default class CanvasReferencePlugin extends Plugin {
 	async updateColorSemantics(color: string, semantic: TaskSemanticId): Promise<void> {
 		this.colorSemantics = { ...this.colorSemantics, [color]: semantic }
 		this.persistedData.colorSemantics = this.colorSemantics
+		await this.saveData(this.persistedData)
+	}
+
+	/** 连接触发键的 KeyboardEvent.code（供设置页读取；空串 = 已禁用）。 */
+	get connectorKeyCode(): string {
+		return this.connectorCode
+	}
+
+	async updateConnectorCode(code: string): Promise<void> {
+		this.connectorCode = code
+		this.persistedData.connectorCode = code
+		// 连接键变更后清掉各窗口的按住状态，避免旧键状态污染新配置
+		for (const state of this.connectorHeldStates.values()) state.held = false
 		await this.saveData(this.persistedData)
 	}
 
@@ -268,12 +292,156 @@ export default class CanvasReferencePlugin extends Plugin {
 		}))
 	}
 
+	/**
+	 * 选择切换自动连边：鼠标路径监听（每窗口）。
+	 *
+	 * pointerdown（capture）在原生清空/替换选区之前快照旧选区；
+	 * click / dblclick（capture）在选区发生无交集切换时自动连边。
+	 * 绝不 preventDefault / stopImmediatePropagation，原生白板行为保持原样。
+	 * 连接触发键为空串（设置中按 Esc 禁用）时直接短路，不做任何解析（省性能）。
+	 */
+	private registerCanvasMouseListeners(): void {
+		const registerForMouseWindow = (eventWindow: Window | null): void => {
+			if (!eventWindow || !this.mouseEventWindows.claim(eventWindow)) return
+
+			const marked = eventWindow as Window & {
+				__canvasWhiteboardMouseCleanup?: () => void
+			}
+			marked.__canvasWhiteboardMouseCleanup?.()
+
+			const tracker = new SelectionSwitchTracker({
+				setTimeout: (callback, ms) => eventWindow.setTimeout(callback, ms),
+				clearTimeout: (handle) => eventWindow.clearTimeout(handle as number),
+			})
+			const connectorHeld = { held: false }
+			this.connectorHeldStates.set(eventWindow, connectorHeld)
+
+			const isConnectorHeld = (event: MouseEvent): boolean =>
+				isConnectorActive(event, this.connectorCode, connectorHeld.held)
+
+			const onPointerDown = (event: PointerEvent): void => {
+				if (this.connectorCode === "") return
+				if (!isConnectorHeld(event)) return // 平时点击零开销，直接短路（只有按下连接键才「领域展开」）
+				const canvas = getCanvasFromEvent(this.app, event, eventWindow)
+				if (!canvas) return
+				onCanvasPointerDown(canvas, tracker, true)
+			}
+			const onClick = (event: MouseEvent): void => {
+				if (this.connectorCode === "") return
+				if (!isConnectorHeld(event)) return // 平时点击零开销
+				const canvas = getCanvasFromEvent(this.app, event, eventWindow)
+				if (!canvas) return
+				// 路径 A：连接键 + 点击（含新创建节点）→ 自切换选中并连边（先跑，快照未被消费）
+				let connected = false
+				const clicked = findClickedNode(canvas, event.target)
+				if (clicked) connected = onConnectorNodeClick(canvas, tracker, clicked.id, true)
+				// 路径 B：原生已切换选区（如双击空白创建的新节点已入选中）→ 兜底
+				if (!connected) connected = onCanvasSelectionSwitch(canvas, tracker, true)
+				if (connected) {
+					new Notice("✅ 选择切换连边：已创建")
+				} else {
+					// 双击空白：节点由原生在事件后创建，延时到事件循环后连边
+					eventWindow.setTimeout(() => {
+						if (tryDeferredConnect(canvas, tracker)) new Notice("✅ 选择切换连边：已创建")
+					}, 0)
+				}
+			}
+			const onDoubleClick = (event: MouseEvent): void => {
+				if (this.connectorCode === "") return
+				if (!isConnectorHeld(event)) return // 平时双击零开销（原生建节点照常）
+				const canvas = getCanvasFromEvent(this.app, event, eventWindow)
+				if (!canvas) return
+				let connected = false
+				const clicked = findClickedNode(canvas, event.target)
+				if (clicked) connected = onConnectorNodeClick(canvas, tracker, clicked.id, true)
+				if (!connected) connected = onCanvasSelectionSwitch(canvas, tracker, true)
+				if (connected) {
+					new Notice("✅ 选择切换连边：已创建")
+				} else {
+					// 双击空白：延时到原生创建节点后再连边
+					eventWindow.setTimeout(() => {
+						if (tryDeferredConnect(canvas, tracker)) new Notice("✅ 选择切换连边：已创建")
+					}, 0)
+				}
+			}
+
+			// 连接触发键的按住状态：独立于现有 isKeyDown（现有在节点编辑态会被拒绝，
+			// 而链式场景恰好在编辑态连按）。
+			const onKeyDown = (event: KeyboardEvent): void => {
+				if (event.repeat) return // 过滤 OS 按键重复事件
+				if (event.code === this.connectorCode) connectorHeld.held = true
+			}
+			const onKeyUp = (event: KeyboardEvent): void => {
+				if (event.code === this.connectorCode) {
+					connectorHeld.held = false
+					// 松开连接键 = 结束本次连边会话：清空遗留快照与链式锚点，避免后续意外连边
+					tracker.clearSnapshot()
+					tracker.lastAnchor = null
+				}
+			}
+			const clearConnectorState = (): void => {
+				connectorHeld.held = false
+				tracker.clearSnapshot()
+				tracker.lastAnchor = null
+			}
+			const onVisibilityChange = (): void => {
+				if (eventWindow.document.visibilityState !== "visible") clearConnectorState()
+			}
+
+			eventWindow.addEventListener("pointerdown", onPointerDown, true)
+			eventWindow.addEventListener("click", onClick, true)
+			eventWindow.addEventListener("dblclick", onDoubleClick, true)
+			eventWindow.addEventListener("keydown", onKeyDown, true)
+			eventWindow.addEventListener("keyup", onKeyUp, true)
+			eventWindow.addEventListener("blur", clearConnectorState)
+			eventWindow.document.addEventListener("visibilitychange", onVisibilityChange)
+
+			let cleaned = false
+			const cleanup = (): void => {
+				if (cleaned) return
+				cleaned = true
+				eventWindow.removeEventListener("pointerdown", onPointerDown, true)
+				eventWindow.removeEventListener("click", onClick, true)
+				eventWindow.removeEventListener("dblclick", onDoubleClick, true)
+				eventWindow.removeEventListener("keydown", onKeyDown, true)
+				eventWindow.removeEventListener("keyup", onKeyUp, true)
+				eventWindow.removeEventListener("blur", clearConnectorState)
+				eventWindow.document.removeEventListener("visibilitychange", onVisibilityChange)
+				if (marked.__canvasWhiteboardMouseCleanup === cleanup)
+					delete marked.__canvasWhiteboardMouseCleanup
+				this.mouseWindowCleanups.delete(eventWindow)
+				this.connectorHeldStates.delete(eventWindow)
+				this.mouseEventWindows.release(eventWindow)
+			}
+			marked.__canvasWhiteboardMouseCleanup = cleanup
+			this.mouseWindowCleanups.set(eventWindow, cleanup)
+			this.register(cleanup)
+		}
+
+		const workspaceDocument = this.app.workspace.containerEl.ownerDocument
+		registerForMouseWindow(workspaceDocument.defaultView ?? window)
+		this.app.workspace.iterateAllLeaves(leaf => {
+			registerForMouseWindow(leaf.view?.containerEl?.ownerDocument?.defaultView ?? null)
+		})
+
+		this.registerEvent(this.app.workspace.on("window-open", (_workspaceWindow, eventWindow) => {
+			registerForMouseWindow(eventWindow)
+		}))
+		this.registerEvent(this.app.workspace.on("window-close", (_workspaceWindow, eventWindow) => {
+			this.mouseWindowCleanups.get(eventWindow)?.()
+		}))
+	}
+
 	onunload(): void {
 		for (const cleanup of [...this.windowCleanups.values()]) cleanup()
 		this.windowCleanups.clear()
 		this.zoomControllers.clear()
 		this.keyDownStates.clear()
 		this.keyEventWindows.clear()
+		for (const cleanup of [...this.mouseWindowCleanups.values()]) cleanup()
+		this.mouseWindowCleanups.clear()
+		this.connectorHeldStates.clear()
+		this.mouseEventWindows.clear()
 	}
 
 	registerEvents(): void {
@@ -356,4 +524,8 @@ export default class CanvasReferencePlugin extends Plugin {
 
 function normalizeRotationColor(value: unknown): RotationColorCondition {
 	return isRotationColorCondition(value) ? value : "3";
+}
+
+function normalizeString(value: unknown, fallback: string): string {
+	return typeof value === "string" && value.trim() ? value.trim() : fallback
 }

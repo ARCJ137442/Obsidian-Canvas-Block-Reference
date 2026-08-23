@@ -122,4 +122,7 @@
 | 2026-08-21 | `life-series-clear-errors-before-final-v1` | 清空目标 Vault 既有 2 条错误 | 269.38 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
 | 2026-08-21 | `life-series-final-reload-errors-v1` | 两插件最终重载成功，`No errors captured` | 635.00 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
 
+| 2026-08-23 13:32:09.410Z | `npm test` | 46/46，退出码 0 | 2608.93 ms | 346,857,472 B（330.79 MiB） | 3.906 s | 2 |
+| 2026-08-23 13:32:16.443Z | `npm run build` | 成功，退出码 0 | 1819.96 ms | 6,148,096 B（5.86 MiB） | 0.047 s | 1 |
+
 测量工具：[`scripts/measure-command.ps1`](../scripts/measure-command.ps1)。峰值工作集是 Windows 进程树内存峰值，不等同于整台机器的总内存占用；短于采样间隔的瞬时峰值可能被漏采。

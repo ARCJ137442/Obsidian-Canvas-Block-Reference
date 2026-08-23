@@ -37,3 +37,10 @@
 ## 版本边界
 
 修复双监听、上下文、连续缩放和 mutation 事务属于 fix 版本；快捷键设置、文档体系、品牌和 ID 迁移属于 minor 版本。以后若再次改变 ID，必须先写迁移方案并明确旧 data、hotkeys、目录和回滚策略。
+
+## 数据字段备忘
+
+> 最后更新：2026-08-23
+
+- `data.json` 顶层字段 `connectorCode`（选择切换自动连边 · 连接触发键）：存 `KeyboardEvent.code`，默认 `"ControlLeft"`；空串 = 禁用（设置捕获中按 Esc 设置）。旧版本没有该字段时按默认 `"ControlLeft"` 加载（`normalizeString`）。
+- 选择切换自动连边（鼠标监听 + 连接触发键设置）按「版本边界」属于 **minor（0.5.0）**；部署到 life-panel 实测验收通过后再发版。

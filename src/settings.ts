@@ -1,4 +1,4 @@
-import { Notice, PluginSettingTab, Setting } from "obsidian"
+import { ButtonComponent, Notice, PluginSettingTab, Setting } from "obsidian"
 import type { App } from "obsidian"
 import type CanvasReferencePlugin from "./main"
 import {
@@ -108,6 +108,18 @@ export class CanvasShortcutSettingTab extends PluginSettingTab {
 				})
 		}
 
+		containerEl.createEl("h3", { text: "选择切换连边" })
+		containerEl.createEl("p", {
+			text: "按住「连接触发键」时，若选中从旧集合无交集切换到新集合（点击已存在节点，或双击空白创建新节点），自动为 旧→新 创建最近锚点的单向连边。原生点击/双击行为保持原样。",
+			cls: "setting-item-description",
+		})
+		new Setting(containerEl)
+			.setName("连接触发键")
+			.setDesc("默认 Ctrl。可设为任意键（如 E）。点击按钮捕获后按 Esc 设为「已禁用」——功能关闭且跳过鼠标解析（更省性能）。")
+			.addButton((button) => {
+				this.addConnectorCaptureButton(button, "连接触发键")
+			})
+
 		this.addShortcutFamily(
 			containerEl,
 			"编辑按键族",
@@ -206,5 +218,88 @@ export class CanvasShortcutSettingTab extends PluginSettingTab {
 				cancelCapture()
 			})
 		})
+	}
+
+	/** 连接触发键捕获：允许修饰键；Esc = 禁用（空串）。 */
+	private addConnectorCaptureButton(button: ButtonComponent, label: string): void {
+		let capturing = false
+		const renderButton = () => {
+			button.setButtonText(capturing ? "请按键…（Esc 禁用，再次点击取消）" : this.connectorButtonLabel())
+			button.buttonEl.toggleClass("mod-warning", capturing)
+		}
+		const cancelCapture = () => {
+			capturing = false
+			if (this.activeCaptureCancel === cancelCapture) this.activeCaptureCancel = undefined
+			renderButton()
+		}
+		button.buttonEl.setAttr("tabindex", "0")
+		button.buttonEl.setAttr("aria-label", `${label}（Esc 禁用）`)
+		button.onClick(() => {
+			if (capturing) {
+				cancelCapture()
+				return
+			}
+			this.activeCaptureCancel?.()
+			this.activeCaptureCancel = cancelCapture
+			capturing = true
+			button.buttonEl.focus()
+			renderButton()
+		})
+		button.buttonEl.addEventListener("keydown", (event: KeyboardEvent) => {
+			if (!capturing) return
+			event.preventDefault()
+			event.stopPropagation()
+			if (event.code === "Escape") {
+				void this.plugin.updateConnectorCode("").then(() => cancelCapture())
+				return
+			}
+			if (MODIFIER_CODES.has(event.code)) {
+				void this.plugin.updateConnectorCode(event.code).then(() => cancelCapture())
+				return
+			}
+			const conflicts = this.findShortcutConflicts(event.code)
+			if (conflicts.length > 0) {
+				new Notice(`${formatShortcutCode(event.code)} 与「${conflicts.join("、")}」重叠；连接键会与之并存，可到单键快捷键区改绑/清除。`)
+			}
+			void this.plugin.updateConnectorCode(event.code).then(() => cancelCapture())
+		})
+		// 初始渲染一次，否则按钮文字默认为空（设置页一打开就是空白）
+		renderButton()
+	}
+
+	private connectorButtonLabel(): string {
+		return formatConnectorCode(this.plugin.connectorKeyCode)
+	}
+
+	/** 连接键若与某个单键快捷键码重叠，返回其名称列表（仅提示，不阻止）。 */
+	private findShortcutConflicts(code: string): string[] {
+		const names: string[] = []
+		const settings = this.plugin.getShortcutSettings()
+		for (const definition of CONFIGURABLE_CANVAS_SHORTCUTS) {
+			const bound = settings[definition.id]
+			if (typeof bound === "string" && bound === code) names.push(definition.name)
+		}
+		return names
+	}
+}
+
+/** 连接触发键的展示文本；修饰键码映射为简短名，空串 = 已禁用。 */
+function formatConnectorCode(code: string): string {
+	if (code === "") return "已禁用"
+	switch (code) {
+		case "ControlLeft":
+		case "ControlRight":
+			return "Ctrl"
+		case "ShiftLeft":
+		case "ShiftRight":
+			return "Shift"
+		case "AltLeft":
+		case "AltRight":
+			return "Alt"
+		case "MetaLeft":
+		case "MetaRight":
+			return "Meta"
+		default:
+			return formatShortcutCode(code)
 	}
 }

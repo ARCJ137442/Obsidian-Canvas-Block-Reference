@@ -21,6 +21,8 @@
 		"../src/canvas-link-suggest-data.ts",
 		"../src/canvas-node-operations.ts",
 		"../src/canvas-edge-operations.ts",
+		"../src/canvas-mouse-util.ts",
+		"../src/canvas-mouse-features.ts",
 		"../src/canvas-zoom.ts",
 		"../src/keyboard-event-guard.ts",
 		"../src/window-registration.ts",
