@@ -8,6 +8,21 @@ import {
 } from "./canvas-shortcuts"
 import type { CanvasShortcutFamilySettingKey, CanvasShortcutSettingKey } from "./canvas-shortcuts"
 import type { RotationColorCondition } from "./rotation-model"
+import type { TaskSemanticId } from "./color-semantics"
+
+const TASK_SEMANTIC_OPTIONS: ReadonlyArray<{ value: TaskSemanticId; label: string }> = [
+	{ value: "blocked", label: "受阻/取消" },
+	{ value: "pending", label: "待推进" },
+	{ value: "progress", label: "推进中" },
+	{ value: "done", label: "已完成" },
+]
+
+const SEMANTIC_COLOR_LABELS: ReadonlyArray<{ color: string; label: string }> = [
+	{ color: "1", label: "红色" },
+	{ color: "2", label: "橙色" },
+	{ color: "3", label: "黄色" },
+	{ color: "4", label: "绿色" },
+]
 
 const ROTATION_COLOR_OPTIONS: ReadonlyArray<{ value: RotationColorCondition; label: string }> = [
 	{ value: "all", label: "全部颜色" },
@@ -76,6 +91,22 @@ export class CanvasShortcutSettingTab extends PluginSettingTab {
 					await this.plugin.updateRotationColor(value as RotationColorCondition)
 				})
 			})
+
+		containerEl.createEl("h3", { text: "颜色语义" })
+		containerEl.createEl("p", {
+			text: "把内置色映射到任务状态（受阻/取消、待推进、推进中、已完成）。life-panel 等扩展按此收集任务节点；与上方的「轮换聚焦条件」相互独立。",
+			cls: "setting-item-description",
+		})
+		for (const { color, label } of SEMANTIC_COLOR_LABELS) {
+			new Setting(containerEl)
+				.setName(label)
+				.addDropdown((dropdown) => {
+					for (const option of TASK_SEMANTIC_OPTIONS) dropdown.addOption(option.value, option.label)
+					dropdown.setValue(this.plugin.colorSemantics[color] ?? "blocked").onChange(async (value) => {
+						await this.plugin.updateColorSemantics(color, value as TaskSemanticId)
+					})
+				})
+		}
 
 		this.addShortcutFamily(
 			containerEl,

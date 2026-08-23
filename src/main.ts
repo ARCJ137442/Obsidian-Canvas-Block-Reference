@@ -23,6 +23,9 @@ import { CanvasShortcutSettingTab } from './settings';
 import { NodeRotationService } from './node-rotation';
 import { isRotationColorCondition } from './rotation-model';
 import type { RotationColorCondition } from './rotation-model';
+import { DEFAULT_COLOR_SEMANTICS, normalizeColorSemantics } from './color-semantics';
+import type { ColorSemantics, TaskSemanticId } from './color-semantics';
+import { openCanvasAndFocusNode } from './workspace-navigation';
 // import { CMD_selectAllEdgesInCanvas } from './commands/select-all-edges';
 // ! ✅「选择所有连边」的功能，在AdvancedCanvas中有了
 
@@ -31,6 +34,8 @@ export default class CanvasReferencePlugin extends Plugin {
 	private persistedData: Record<string, unknown> = {}
 	/** 轮换聚焦条件，供设置页读取与外部插件联动；默认黄色。 */
 	rotationColor: RotationColorCondition = "3"
+	/** 颜色→任务语义，供设置页与 life-panel 等扩展读取；与轮换聚焦条件独立。 */
+	colorSemantics: ColorSemantics = { ...DEFAULT_COLOR_SEMANTICS }
 	private _nodeRotation!: NodeRotationService
 
 	async onload(): Promise<void> {
@@ -40,6 +45,7 @@ export default class CanvasReferencePlugin extends Plugin {
 			this.settings = normalizeCanvasShortcutSettings(this.persistedData.shortcuts)
 		}
 		this.rotationColor = normalizeRotationColor(this.persistedData.rotationColor)
+		this.colorSemantics = normalizeColorSemantics(this.persistedData.colorSemantics)
 		this._nodeRotation = new NodeRotationService(this.app, () => ({ rotationColor: this.rotationColor }))
 		this.registerRotationCommands()
 		this.addSettingTab(new CanvasShortcutSettingTab(this.app, this))
@@ -79,6 +85,22 @@ export default class CanvasReferencePlugin extends Plugin {
 	/** 对外公开的轮换服务：供 life-panel 等插件把自定义白板集合传入轮换。 */
 	get nodeRotation(): NodeRotationService {
 		return this._nodeRotation
+	}
+
+	/** 颜色→任务语义映射，供 life-panel 等扩展按语义反查颜色收集任务节点。 */
+	getColorSemantics(): Readonly<ColorSemantics> {
+		return this.colorSemantics
+	}
+
+	async updateColorSemantics(color: string, semantic: TaskSemanticId): Promise<void> {
+		this.colorSemantics = { ...this.colorSemantics, [color]: semantic }
+		this.persistedData.colorSemantics = this.colorSemantics
+		await this.saveData(this.persistedData)
+	}
+
+	/** 聚焦白板中的指定节点（打开/切窗、等渲染、选中并缩放），供 life-panel 点击任务项调用。 */
+	focusNode(canvasPath: string, nodeId: string): Promise<boolean> {
+		return openCanvasAndFocusNode(this.app, canvasPath, nodeId)
 	}
 
 	async updateRotationColor(color: RotationColorCondition): Promise<void> {
