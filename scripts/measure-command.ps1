@@ -74,6 +74,7 @@ $commandProcess = Start-Process `
     -WorkingDirectory $workDirectory `
     -RedirectStandardOutput $stdoutPath `
     -RedirectStandardError $stderrPath `
+    -WindowStyle Hidden `
     -PassThru
 
 $peakWorkingSetBytes = [int64]0

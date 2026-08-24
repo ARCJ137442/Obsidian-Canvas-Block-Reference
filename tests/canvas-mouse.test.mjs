@@ -145,6 +145,19 @@ test("松开连接键后清空快照并重置锚点 → 无遗留源", () => {
 	assert.equal(tracker.getSourceIds(), null)
 })
 
+test("配置切换清空完整连接会话，避免沿用旧锚点", () => {
+	const clock = fakeClock()
+	const tracker = new SelectionSwitchTracker(clock)
+	tracker.onPointerDown(true, [node("A")])
+	tracker.lastAnchor = "B"
+
+	tracker.clearSession()
+
+	assert.equal(tracker.snapshotNodes, null)
+	assert.equal(tracker.lastAnchor, null)
+	assert.equal(tracker.getSourceIds(), null)
+})
+
 test("isConnectorActive：修饰键读事件 flag，普通键读 held", () => {
 	const noMods = { ctrlKey: false, shiftKey: false, altKey: false, metaKey: false }
 	assert.equal(isConnectorActive({ ...noMods, ctrlKey: true }, "ControlLeft", false), true)

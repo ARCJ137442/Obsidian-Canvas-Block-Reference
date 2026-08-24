@@ -43,6 +43,7 @@ export default class CanvasReferencePlugin extends Plugin {
 
 	private mouseEventWindows = new WindowRegistrationRegistry<Window>()
 	private connectorHeldStates = new Map<Window, { held: boolean }>()
+	private connectorTrackers = new Map<Window, SelectionSwitchTracker>()
 	private mouseWindowCleanups = new Map<Window, () => void>()
 
 	private _nodeRotation!: NodeRotationService
@@ -119,6 +120,7 @@ export default class CanvasReferencePlugin extends Plugin {
 		this.persistedData.connectorCode = code
 		// 连接键变更后清掉各窗口的按住状态，避免旧键状态污染新配置
 		for (const state of this.connectorHeldStates.values()) state.held = false
+		for (const tracker of this.connectorTrackers.values()) tracker.clearSession()
 		await this.saveData(this.persistedData)
 	}
 
@@ -315,6 +317,7 @@ export default class CanvasReferencePlugin extends Plugin {
 			})
 			const connectorHeld = { held: false }
 			this.connectorHeldStates.set(eventWindow, connectorHeld)
+			this.connectorTrackers.set(eventWindow, tracker)
 
 			const isConnectorHeld = (event: MouseEvent): boolean =>
 				isConnectorActive(event, this.connectorCode, connectorHeld.held)
@@ -375,14 +378,12 @@ export default class CanvasReferencePlugin extends Plugin {
 				if (event.code === this.connectorCode) {
 					connectorHeld.held = false
 					// 松开连接键 = 结束本次连边会话：清空遗留快照与链式锚点，避免后续意外连边
-					tracker.clearSnapshot()
-					tracker.lastAnchor = null
+					tracker.clearSession()
 				}
 			}
 			const clearConnectorState = (): void => {
 				connectorHeld.held = false
-				tracker.clearSnapshot()
-				tracker.lastAnchor = null
+				tracker.clearSession()
 			}
 			const onVisibilityChange = (): void => {
 				if (eventWindow.document.visibilityState !== "visible") clearConnectorState()
@@ -411,6 +412,7 @@ export default class CanvasReferencePlugin extends Plugin {
 					delete marked.__canvasWhiteboardMouseCleanup
 				this.mouseWindowCleanups.delete(eventWindow)
 				this.connectorHeldStates.delete(eventWindow)
+				this.connectorTrackers.delete(eventWindow)
 				this.mouseEventWindows.release(eventWindow)
 			}
 			marked.__canvasWhiteboardMouseCleanup = cleanup
@@ -441,6 +443,7 @@ export default class CanvasReferencePlugin extends Plugin {
 		for (const cleanup of [...this.mouseWindowCleanups.values()]) cleanup()
 		this.mouseWindowCleanups.clear()
 		this.connectorHeldStates.clear()
+		this.connectorTrackers.clear()
 		this.mouseEventWindows.clear()
 	}
 

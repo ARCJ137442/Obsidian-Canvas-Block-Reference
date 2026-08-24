@@ -130,6 +130,12 @@ export class SelectionSwitchTracker {
 		}
 	}
 
+	/** 清空一次完整的连接会话，供配置切换和窗口生命周期边界使用。 */
+	clearSession(): void {
+		this.clearSnapshot()
+		this.lastAnchor = null
+	}
+
 	private restartTimer(): void {
 		if (this.timerHandle !== undefined) this.clock.clearTimeout(this.timerHandle)
 		this.timerHandle = this.clock.setTimeout(() => {

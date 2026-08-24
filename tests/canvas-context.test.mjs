@@ -9,6 +9,7 @@ import clipboard from "../.test-build/clipboard.js"
 import flip from "../.test-build/canvas-flip.js"
 import layout from "../.test-build/brickLayout.js"
 import suggestData from "../.test-build/canvas-link-suggest-data.js"
+import suggestMode from "../.test-build/canvas-link-suggest-mode.js"
 import nodeOperations from "../.test-build/canvas-node-operations.js"
 import edgeOperations from "../.test-build/canvas-edge-operations.js"
 import zoomModule from "../.test-build/canvas-zoom.js"
@@ -29,6 +30,7 @@ const { writeTextToClipboard } = clipboard
 const { collectEdgesForFlip } = flip
 const { packRectangles } = layout
 const { parseCanvasNodes } = suggestData
+const { getCanvasLinkMode } = suggestMode
 const { createCanvasTextNode } = nodeOperations
 const { addCanvasEdge } = edgeOperations
 const { createContinuousZoomController } = zoomModule
@@ -60,6 +62,12 @@ test("快捷键匹配集中配置的默认组合", () => {
 	assert.equal(getCanvasShortcutId(keyboardEvent({ key: "!", code: "Digit1", shiftKey: true })), undefined)
 	assert.equal(canPropagateCanvasShortcut(keyboardEvent({ key: "w", code: "KeyW" })), true)
 	assert.equal(canPropagateCanvasShortcut(keyboardEvent({ key: "c", code: "KeyC" })), false)
+})
+
+test("Canvas 链接建议识别标题、块和普通查询", () => {
+	assert.equal(getCanvasLinkMode("notes.canvas#标题"), "heading")
+	assert.equal(getCanvasLinkMode("notes.canvas#^block-id"), "block")
+	assert.equal(getCanvasLinkMode("notes.md#标题"), null)
 })
 
 test("快捷键配置会同步影响主/副窗口使用的同一匹配器", () => {

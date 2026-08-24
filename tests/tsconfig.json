@@ -19,6 +19,7 @@
 		"../src/clipboard.ts",
 		"../src/canvas-flip.ts",
 		"../src/canvas-link-suggest-data.ts",
+		"../src/canvas-link-suggest-mode.ts",
 		"../src/canvas-node-operations.ts",
 		"../src/canvas-edge-operations.ts",
 		"../src/canvas-mouse-util.ts",

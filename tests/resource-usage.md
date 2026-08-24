@@ -124,5 +124,11 @@
 
 | 2026-08-23 13:32:09.410Z | `npm test` | 46/46，退出码 0 | 2608.93 ms | 346,857,472 B（330.79 MiB） | 3.906 s | 2 |
 | 2026-08-23 13:32:16.443Z | `npm run build` | 成功，退出码 0 | 1819.96 ms | 6,148,096 B（5.86 MiB） | 0.047 s | 1 |
+| 2026-08-24 03:14:41.096Z | `planning-final-tests` / `npm test` | 51/51，退出码 0 | 2361.72 ms | 291,393,536 B（277.89 MiB） | 2.203 s | 2 |
+| 2026-08-24 03:14:43.955Z | `planning-final-build` / `npm run build` | 成功，退出码 0 | 1553.76 ms | 281,944,064 B（268.88 MiB） | 1.938 s | 2 |
+| 2026-08-24 03:14:45.978Z | `life-panel-final-cli-errors` / `obsidian vault=life-panel dev:errors` | `No errors captured`，退出码 0；短 CLI 进程，可能漏采 | 235.83 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-24 03:14:46.688Z | `life-series-final-cli-errors` / `obsidian vault=life-series dev:errors` | `No errors captured`，退出码 0；短 CLI 进程，可能漏采 | 228.92 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-24 03:51:16.433Z | `runtime-state-life-panel` / `obsidian vault=life-panel eval` | 运行态窗口/清理器/注册数均为 2，退出码 0；短 CLI 进程，可能漏采 | 392.81 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-24 03:51:17.370Z | `runtime-state-life-series` / `obsidian vault=life-series eval` | 运行态窗口/清理器/注册数均为 2，退出码 0；短 CLI 进程，可能漏采 | 296.29 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
 
 测量工具：[`scripts/measure-command.ps1`](../scripts/measure-command.ps1)。峰值工作集是 Windows 进程树内存峰值，不等同于整台机器的总内存占用；短于采样间隔的瞬时峰值可能被漏采。

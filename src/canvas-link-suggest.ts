@@ -9,6 +9,12 @@ import { BlockLinkInfo, BuiltInSuggest, BuiltInSuggestItem } from './typings/sug
 import { CanvasNode, CanvasView } from 'obsidian/canvas';
 import { getCanvasElementTitle, getFileLink } from './utils';
 import { parseCanvasNodes } from './canvas-link-suggest-data';
+import {
+	CANVAS_EXTENSION,
+	END_QUERY_BLOCK,
+	END_QUERY_HEADING,
+	getCanvasLinkMode,
+} from './canvas-link-suggest-mode';
 
 // /**
 //  * 实际的「文件输入建议」功能
@@ -56,24 +62,7 @@ import { parseCanvasNodes } from './canvas-link-suggest-data';
 // 	}
 // }
 
-const CANVAS_EXTENSION = '.canvas'
-const END_QUERY_HEADING = '#'
-const END_QUERY_BLOCK = END_QUERY_HEADING + '^'
-
 const canvasNodesCache = new Map<string, { mtime: number, nodes: CanvasNode[] }>()
-
-
-/** 获取链接的模式，如`[[file#title]]`、`[[file#^block]]` */
-function tryGetLinkMode(query: string): 'heading' | 'block' | null {
-	// should be either heading or block
-	const mode = (
-		query.contains(CANVAS_EXTENSION + END_QUERY_BLOCK) ? 'block'
-			: query.contains(CANVAS_EXTENSION + END_QUERY_HEADING) ? 'heading' // 必须放后边：包括了 `#`
-				: null
-	)
-
-	return mode
-}
 
 async function tryGetCanvasNodes(app: App, context: EditorSuggestContext): Promise<{
 	query: string,
@@ -85,7 +74,7 @@ async function tryGetCanvasNodes(app: App, context: EditorSuggestContext): Promi
 	// * ✅有context.query
 
 	const { query, file } = context;
-	const isSuggestForCanvas = query.contains(CANVAS_EXTENSION)
+	const isSuggestForCanvas = query.includes(".canvas")
 
 	if (!isSuggestForCanvas) return null;
 	// Get current canvas path from query string
@@ -132,7 +121,7 @@ async function getNodesFromCanvas(app: App, canvasFile: TFile) {
 /** 根据白板数据生成相关建议 */
 function generateSuggestions(context: EditorSuggestContext, query: string, nodes: CanvasNode[], app: App, file: TFile) {
 	// 链接的格式：标题还是块，还是没有
-	const mode = tryGetLinkMode(query);
+	const mode = getCanvasLinkMode(query);
 	if (mode === null) return null;
 
 	const suggestions: BuiltInSuggestItem[] = [];
