@@ -11,6 +11,7 @@
 	},
 	"include": [
 		"../src/canvas-context.ts",
+		"../src/canvas-pointer-lease.ts",
 		"../src/rotation-model.ts",
 		"../src/canvas-shortcuts.ts",
 		"../src/canvas-mutations.ts",
@@ -26,6 +27,8 @@
 		"../src/canvas-mouse-features.ts",
 		"../src/canvas-zoom.ts",
 		"../src/keyboard-event-guard.ts",
+		"../src/diagnostics.ts",
+		"../src/plugin-bridge.ts",
 		"../src/window-registration.ts",
 		"../src/brickLayout.ts",
 		"../src/typings/canvas.ts"

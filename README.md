@@ -10,6 +10,8 @@
 - 节点创建、连边、ID 修改、翻转和紧凑布局具备保存、撤销边界与失败提示。
 - 建议读取优先使用已打开 Canvas 的内存内容；未打开文件使用 Obsidian Vault API，不依赖 Node 运行时。
 - 快捷键可在插件设置中通过按键选择器修改，冲突按键会被拦截。
+- Android 外接键盘在节点编辑与输入法退出后继续保持白板操作；恢复依赖同窗口真实 Canvas 指针归属，不会把输入框或弹窗误认成白板。
+- 提供默认关闭的移动端诊断命令，可将本插件与 Canvas Keyboard Pan 的有界内存日志合并复制，用于真机兼容性排查。
 
 ## 快捷键
 
@@ -45,7 +47,7 @@
 
 ### 手动安装
 
-下载 Release 中的 `obsidian-whiteboard-deduction-arc.zip`，解压到：
+下载 Release 中版本化的 `obsidian-whiteboard-deduction-arc-<tag>.zip`，解压到：
 
 `{{obsidian_vault}}/.obsidian/plugins/obsidian-whiteboard-deduction-arc`
 
@@ -71,10 +73,11 @@
 ## 开发与验证
 
 ```text
-npm install
+npm ci
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/measure-command.ps1 -Label "whiteboard-tests" -Command "npm test"
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/measure-command.ps1 -Label "whiteboard-build" -Command "npm run build"
 ```
 
 测试资源记录见 [`tests/resource-usage.md`](tests/resource-usage.md)。
 开发规范与交接文档见 [`AGENTS.md`](AGENTS.md) 和 [`agents/`](agents/)。
+下一步开发顺序见 [`agents/roadmap.md`](agents/roadmap.md)。

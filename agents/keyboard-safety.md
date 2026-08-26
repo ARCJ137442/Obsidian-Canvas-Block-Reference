@@ -1,6 +1,6 @@
 # 白板快捷键安全规范
 
-> 最后更新：2026-08-21
+> 最后更新：2026-08-26
 
 ## 总原则
 
@@ -17,9 +17,14 @@
 
 1. 从事件 target/composed path 找到所属 Canvas DOM。
 2. 如果事件没有元素 target，只能在同一窗口内做安全回退；不能跨窗口使用 active view。
-3. 如果 target 是 Canvas 外的真实元素，直接返回 `undefined`。这覆盖 Modal、设置页、命令面板、搜索区域和其他插件 UI。
+3. 如果 target 是 Canvas 外的真实元素，直接返回 `undefined`。Modal、设置页、命令面板、搜索区域和其他插件 UI 都不能回退到 Canvas。
+4. Android 在首次节点编辑退出后会把后续实体键盘事件留在 `BODY/HTML`。只有同一 Window 中刚刚由真实 `pointerdown` DOM 解析出的 Canvas 才能建立归属租约；BODY/HTML 事件可复用这份正证据，但不能从 active leaf、唯一 Canvas 或窗口布局猜测。
 
-不要把“当前窗口只有一个 Canvas”当成“窗口里的所有键盘事件都属于 Canvas”。这是最容易制造无关路径误操作的错误。
+不要把“当前窗口只有一个 Canvas”或“active leaf 是 Canvas”当成“窗口里的所有键盘事件都属于 Canvas”。这是最容易制造无关路径误操作的错误。
+
+2026-08-26 的 Android 真机回归证明：把输入法退出后遗留的 `BODY/HTML` 焦点按 active leaf 兜底到 Canvas，会扩大快捷键拦截边界；匹配但没有实际动作的 `C/W/A/S/D` 仍会吞掉 Obsidian 自身事件，并使底部工具栏消失。该方案已经撤回。后续真机日志同时证明 ARC 与 Pan 在首次编辑前可用、编辑后共同因 BODY 上下文丢失而拒绝事件，因此改用“真实 Canvas 指针 → 同窗口 BODY/HTML”的有界租约，不得重新引入 active-leaf 推断。最终 Android 报告确认 Z、C、Space 与 Pan WASD 均通过租约恢复，且输入区域、Modal 和覆盖层仍被拒绝。
+
+租约必须在具体外部元素、非 BODY/HTML 活动元素、Modal/Prompt、active-leaf-change、Window blur、Document 隐藏、Canvas 关闭、监听清理或插件卸载时失效。租约本身不绕过 `isEditableTarget`、`isCanvasEditing`、composition 和 repeat 闸门。
 
 ## 必须拒绝的负路径
 
@@ -27,12 +32,13 @@
 |---|---|
 | `input`、`textarea`、`select`、textbox、contenteditable | `isEditableTarget` 沿祖先链检查 |
 | Canvas 节点正在编辑 | `isCanvasEditing` 交还编辑器 |
-| Modal、命令面板、搜索框、设置页 | target 不属于 Canvas，context resolver 返回空 |
+| Modal、命令面板、搜索框、设置页 | target 不属于 Canvas；覆盖层出现时清除指针租约 |
 | 输入法组合态 | `event.isComposing` 直接拒绝 |
 | 浏览器/Obsidian 重复 keydown | `event.repeat` 直接拒绝 |
 | Ctrl、Alt、Meta 组合 | shortcut matcher 要求这些修饰键为 false |
 | 窗口失焦、Document 隐藏、窗口关闭 | 清空该窗口 key state 并停止 controller |
 | 其他 Canvas 窗口 | 通过 ownerDocument/defaultView 和 DOM 归属隔离 |
+| Android 编辑退出后的 `BODY/HTML` | 仅使用同 Window、同 Document、仍可用 Canvas 的真实指针租约 |
 
 ## 修饰键与按键状态
 
@@ -79,7 +85,7 @@
 
 ### 性能边界（领域展开）
 
-事件处理**平时零开销**：pointerdown/click/dblclick 的第一行就检查 `isConnectorHeld`（修饰键读 `event.ctrlKey`，普通键读 keydown/keyup 追踪），**未按下连接键直接 return**，不做 `getCanvasFromEvent`/快照/查找。只有按下连接键才跑完整逻辑。
+pointerdown 会执行一次有界 Canvas DOM 归属解析，用来维护移动端键盘指针租约；它不读节点正文、不写 Canvas，也不启动计时器。未按连接键时，连边功能仍不做选区快照、节点查找或连边计算；只有按下连接键才跑完整连边逻辑。
 
 ### 会话生命周期
 
@@ -115,3 +121,7 @@
 6. 松开连接键后再操作 → 无遗留连边。
 7. 连接键设为「已禁用」→ 鼠标解析完全短路。
 8. blur、visibilitychange、reload 后无残留状态或双倍连边。
+
+## 移动端按需诊断
+
+移动端诊断默认关闭，仅由命令“移动端 Canvas 诊断：开始（内存）”开启；停止命令会停止 ARC 与已安装 Pan 插件的公开诊断 API，合并时间线并复制报告。诊断只保留有上限的内存记录，字段使用 `KeyboardEvent.code`、快捷键 ID、同步／下一动画帧／150 ms settled 阶段的效果观察、指针类型、临时 Window/Document ID、当前 View 类型、Canvas 相对路径、节点 ID（仅在 Vault 与路径同时可得时）、焦点/组合输入生命周期、结构化守卫 reason，以及 Pan 视口前后状态；不得记录 `KeyboardEvent.key`、正文、实际输入文本或剪贴板。报告末尾必须保留 Pan 桥接最终状态，避免长日志轮换掉启动证据。若移动端剪贴板复制失败，报告只在内存保留，再次执行停止命令可以重试；插件卸载或重新开始诊断时清除。以后修改移动端上下文、编辑态或监听生命周期，仍必须用真机报告复核正负路径。

@@ -1,6 +1,6 @@
 # 测试、资源与 Obsidian CLI 实测
 
-> 最后更新：2026-08-21
+> 最后更新：2026-08-26
 
 ## 资源采样硬规则
 
@@ -16,7 +16,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/measure-command.ps1 
 
 ## 本地验证顺序
 
-1. 通过资源采样器运行 `npm test`：类型编译测试目标并运行 Node test；测试当前集中在 `tests/canvas-context.test.mjs`。
+1. 通过资源采样器运行 `npm test`：类型编译测试目标并运行 Canvas 上下文、旋转模型、鼠标交互与按需诊断测试。
 2. 通过资源采样器运行 `npm run build`：先 TypeScript 检查，再生成 `main.js`。
 3. 复制构建产物到实际 Vault 插件目录后执行：
 
@@ -27,6 +27,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/measure-command.ps1 
 
 4. 用 `obsidian eval` 查询插件版本、窗口注册/清理数量、Canvas leaves，并向主窗口和 popout 的实际 Canvas DOM dispatch KeyboardEvent。
 5. 统计 `zoomBy`、`setColor` 或其他 mutation 方法调用次数，确认主副窗口等效且没有双倍调用。
+6. 推送 `main` 后用 `gh run list`／`gh run watch` 等待 CI 的测试与构建成功；本地通过不能替代远端 CI。
 
 ## 正/负路径探针
 
@@ -40,6 +41,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/measure-command.ps1 
 - reload 多次：每个 Window 只有一套状态、清理器和 listener。
 
 探针只能辅助定位运行时问题，不能替代纯函数回归测试。事件探针必须恢复对 Obsidian 对象的临时 monkey patch，并删除临时 DOM。
+
+Android 外接键盘改动还要覆盖“首次编辑前 → 唤起输入法 → 点击 Canvas 退出编辑 → 不切换标签继续操作”。报告必须自报插件版本和诊断修订号，并同时证明输入区／Modal 等负路径仍被拒绝。
 
 ## 错误归因
 

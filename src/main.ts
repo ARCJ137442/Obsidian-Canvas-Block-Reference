@@ -1,4 +1,4 @@
-import { Notice, Plugin, TFile, ViewState, WorkspaceLeaf } from 'obsidian';
+import { Notice, Platform, Plugin, TFile, ViewState, WorkspaceLeaf, apiVersion } from 'obsidian';
 import { around } from "monkey-around";
 import { CMD_copyCanvasElementReference, EVENT_copyCanvasCardReferenceMenu } from './copy-canvas-element-reference';
 import { openingFile } from './canvas-link-redirection';
@@ -11,7 +11,8 @@ import { CMD_adjustEdgeOnside, CMD_toggleNodeEdgeSelect, EVENT_adjustEdgeOnside,
 import { packRectangles } from './brickLayout';
 import { CMD_flipCanvasElementsH, CMD_flipCanvasElementsV, EVENT_flipCanvasElementsH, EVENT_flipCanvasElementsV } from './flip-canvas-nodes';
 import { onCanvasKeyDown } from './canvas-keydown-features';
-import { canHandleCanvasKeyboardEvent, getCanvasFromEvent, isEditableTarget } from './canvas-context';
+import { canHandleCanvasKeyboardEvent, getCanvasFromEvent, isCanvasEditing, isEditableTarget, resolveCanvasFromEvent, updateCanvasPointerLeaseFromEvent } from './canvas-context';
+import { CanvasPointerLeaseRegistry } from './canvas-pointer-lease';
 import { findClickedNode, onCanvasPointerDown, onCanvasSelectionSwitch, onConnectorNodeClick, tryDeferredConnect } from './canvas-mouse-features';
 import { isConnectorActive, SelectionSwitchTracker } from './canvas-mouse-util';
 import { createContinuousZoomController } from './canvas-zoom';
@@ -19,7 +20,7 @@ import type { ContinuousZoomController } from './canvas-zoom';
 import { KeyboardEventGuard } from './keyboard-event-guard';
 import { WindowRegistrationRegistry } from './window-registration';
 import type { Canvas } from 'obsidian/canvas';
-import { canPropagateCanvasShortcut, DEFAULT_CANVAS_SHORTCUT_SETTINGS, normalizeCanvasShortcutSettings, withCanvasShortcutCode } from './canvas-shortcuts';
+import { canPropagateCanvasShortcut, DEFAULT_CANVAS_SHORTCUT_SETTINGS, getCanvasShortcutId, normalizeCanvasShortcutSettings, withCanvasShortcutCode } from './canvas-shortcuts';
 import type { CanvasShortcutSettingKey, CanvasShortcutSettings } from './canvas-shortcuts';
 import { CanvasShortcutSettingTab } from './settings';
 import { NodeRotationService } from './node-rotation';
@@ -28,6 +29,11 @@ import type { RotationColorCondition } from './rotation-model';
 import { DEFAULT_COLOR_SEMANTICS, normalizeColorSemantics } from './color-semantics';
 import type { ColorSemantics, TaskSemanticId } from './color-semantics';
 import { openCanvasAndFocusNode } from './workspace-navigation';
+import { CanvasDiagnostics, captureCanvasActionState, describeDiagnosticElement, getDiagnosticWindowIds } from './diagnostics';
+import type { DiagnosticReport } from './diagnostics';
+import { writeTextToClipboard } from './clipboard';
+import { diagnosticsBridgeFinalPhase, resolveDiagnosticsBridge } from './plugin-bridge';
+import type { DiagnosticsBridge, DiagnosticsBridgeRuntimeStatus } from './plugin-bridge';
 // import { CMD_selectAllEdgesInCanvas } from './commands/select-all-edges';
 // ! ✅「选择所有连边」的功能，在AdvancedCanvas中有了
 
@@ -82,6 +88,11 @@ export default class CanvasReferencePlugin extends Plugin {
 	private zoomControllers = new Map<Window, ContinuousZoomController>()
 	private windowCleanups = new Map<Window, () => void>()
 	private handledKeyboardEvents = new KeyboardEventGuard()
+	private readonly canvasPointerLeases = new CanvasPointerLeaseRegistry<Canvas>()
+	private readonly diagnostics = new CanvasDiagnostics("obsidian-whiteboard-deduction-arc")
+	private pendingMobileDiagnosticReport: string | undefined
+	private activePanDiagnosticsBridge: DiagnosticsBridge | undefined
+	private panDiagnosticsStatus: DiagnosticsBridgeRuntimeStatus = "not-started"
 
 	getShortcutSettings(): CanvasShortcutSettings {
 		return this.settings
@@ -169,6 +180,123 @@ export default class CanvasReferencePlugin extends Plugin {
 		for (const controller of this.zoomControllers.values()) controller.stop()
 	}
 
+	private startMobileDiagnostics(): void {
+		this.pendingMobileDiagnosticReport = undefined
+		const sessionId = this.diagnostics.start()
+		this.diagnostics.record({ event: "session", phase: "start" })
+		this.diagnostics.record({
+			event: "runtime",
+			phase: "build",
+			pluginVersion: this.manifest.version,
+			diagnosticRevision: "mobile-canvas-pointer-lease-v1",
+			reason: `${apiVersion}:${Platform.isAndroidApp ? "android" : Platform.isIosApp ? "ios" : Platform.isMobile ? "mobile" : "desktop"}`,
+		})
+		const panBridge = resolveDiagnosticsBridge(this.app, "canvas-keyboard-pan")
+		this.diagnostics.record({ event: "integration", phase: `pan-bridge-${panBridge.status}` })
+		this.panDiagnosticsStatus = panBridge.status
+		this.activePanDiagnosticsBridge = panBridge.status === "ready" ? panBridge.bridge : undefined
+		try {
+			this.activePanDiagnosticsBridge?.startDiagnostics(sessionId)
+			const workspaceWindow = this.app.workspace.containerEl.ownerDocument.defaultView
+			this.diagnostics.record({ event: "listener", phase: "active", ...getDiagnosticWindowIds(workspaceWindow) })
+			this.app.workspace.iterateAllLeaves(leaf => {
+				const eventWindow = leaf.view?.containerEl?.ownerDocument.defaultView
+				this.diagnostics.record({ event: "listener", phase: "active", ...getDiagnosticWindowIds(eventWindow) })
+			})
+			new Notice("移动端 Canvas 诊断已开始（仅内存记录）")
+		} catch (error) {
+			this.activePanDiagnosticsBridge = undefined
+			this.panDiagnosticsStatus = "start-failed"
+			this.diagnostics.record({ event: "integration", phase: "pan-bridge-start-failed", exception: error instanceof Error ? error.name : "unknown" })
+			new Notice("移动端 Canvas 诊断：Pan 联动不可用")
+		}
+	}
+
+	private async stopAndCopyMobileDiagnostics(): Promise<void> {
+		if (!this.diagnostics.enabled) {
+			if (this.pendingMobileDiagnosticReport) {
+				const copied = await writeTextToClipboard(this.pendingMobileDiagnosticReport, globalThis.navigator?.clipboard)
+				if (copied) {
+					this.pendingMobileDiagnosticReport = undefined
+					new Notice("移动端 Canvas 诊断报告已重新复制")
+				} else {
+					new Notice("移动端 Canvas 诊断报告仍未能复制，可再次执行本命令重试")
+				}
+				return
+			}
+			new Notice("移动端 Canvas 诊断尚未开始")
+			return
+		}
+		let panReport: DiagnosticReport | undefined
+		try {
+			panReport = this.activePanDiagnosticsBridge?.stopDiagnostics() as DiagnosticReport | undefined
+			if (this.activePanDiagnosticsBridge) this.diagnostics.record({ event: "integration", phase: "pan-bridge-stopped" })
+		} catch (error) {
+			this.panDiagnosticsStatus = "stop-failed"
+			this.diagnostics.record({ event: "integration", phase: "pan-bridge-stop-failed", exception: error instanceof Error ? error.name : "unknown" })
+		}
+		this.diagnostics.record({ event: "integration", phase: diagnosticsBridgeFinalPhase(this.panDiagnosticsStatus) })
+		this.activePanDiagnosticsBridge = undefined
+		const arcReport = this.diagnostics.stop()
+		this.panDiagnosticsStatus = "not-started"
+		const records = [...arcReport.records, ...(panReport?.records ?? [])].sort((a, b) => a.timestampMs - b.timestampMs || a.seq - b.seq)
+		const report = JSON.stringify({
+			schemaVersion: arcReport.schemaVersion,
+			sessionId: arcReport.sessionId,
+			records,
+		}, null, 2)
+		this.pendingMobileDiagnosticReport = report
+		try {
+			const copied = await writeTextToClipboard(report, globalThis.navigator?.clipboard)
+			if (!copied) throw new Error("clipboard-unavailable")
+			this.pendingMobileDiagnosticReport = undefined
+			new Notice(`移动端 Canvas 诊断报告已复制（${records.length} 条）`)
+		} catch {
+			new Notice("移动端 Canvas 诊断已停止；复制失败，可再次执行本命令重试")
+		}
+	}
+
+	private diagnosticContext(eventWindow: Window, event?: Event, canvas?: Canvas): {
+		vaultName?: string
+		canvasPath?: string
+		nodeId?: string
+		selectionCount?: number
+		isEditing?: boolean
+		windowId?: string
+		documentId?: string
+		target?: ReturnType<typeof describeDiagnosticElement>
+		activeElement?: ReturnType<typeof describeDiagnosticElement>
+	} {
+		const selected = canvas ? [...(canvas.selection ?? [])] : []
+		const first = selected.find(element => typeof (element as { id?: unknown }).id === "string") as { id?: string } | undefined
+		const view = canvas as (Canvas & { view?: { file?: { path?: string } } }) | undefined
+		let vaultName: string | undefined
+		try { vaultName = this.app.vault.getName() } catch { /* host may not expose a vault in tests */ }
+		return {
+			...(vaultName ? { vaultName } : {}),
+			...(view?.view?.file?.path ? { canvasPath: view.view.file.path } : {}),
+			...(first?.id && vaultName && view?.view?.file?.path ? { nodeId: first.id } : {}),
+			...(canvas ? { selectionCount: selected.length, isEditing: isCanvasEditing(canvas) } : {}),
+			...getDiagnosticWindowIds(eventWindow),
+			...(event ? {
+				target: describeDiagnosticElement(event.target),
+				activeElement: describeDiagnosticElement(eventWindow.document.activeElement),
+			} : {}),
+		}
+	}
+
+	private recordKeyboard(
+		eventWindow: Window,
+		event: KeyboardEvent,
+		canvas: Canvas | undefined,
+		accepted: boolean,
+		reason: string,
+		details: { shortcutId?: string; effectObserved?: boolean; contextSource?: string; leaseReason?: string; phase?: string } = {},
+	): void {
+		if (!this.diagnostics.enabled) return
+		this.diagnostics.record({ event: "guard", code: event.code, accepted, reason, ...details, ...this.diagnosticContext(eventWindow, event, canvas) })
+	}
+
 	private registerCanvasKeyListeners(): void {
 		const registerForWindow = (eventWindow: Window | null): void => {
 			if (!eventWindow || !this.keyEventWindows.claim(eventWindow)) return
@@ -180,6 +308,7 @@ export default class CanvasReferencePlugin extends Plugin {
 
 			const isKeyDown: { [code: string]: boolean } = {}
 			this.keyDownStates.set(eventWindow, isKeyDown)
+			this.diagnostics.record({ event: "listener", phase: "registered", ...getDiagnosticWindowIds(eventWindow) })
 			let zoomCanvas: Canvas | undefined
 			let zoomShiftFallback = false
 			const zoomController = createContinuousZoomController(
@@ -205,10 +334,30 @@ export default class CanvasReferencePlugin extends Plugin {
 			}
 
 			const onKeyDown = (event: KeyboardEvent): void => {
-				if (event.repeat) return
-				const canvas = getCanvasFromEvent(this.app, event, eventWindow)
-				if (!canvas || !canHandleCanvasKeyboardEvent(event, canvas)) return
-				if (!this.handledKeyboardEvents.consume(event)) return
+				if (event.repeat) {
+					this.recordKeyboard(eventWindow, event, undefined, false, "repeat", { phase: "keydown" })
+					return
+				}
+				const context = resolveCanvasFromEvent(this.app, event, eventWindow, this.canvasPointerLeases)
+				const canvas = context.canvas
+				if (!canvas) {
+					this.recordKeyboard(eventWindow, event, undefined, false, "canvas-context-unresolved", {
+						phase: "keydown",
+						contextSource: context.source,
+						leaseReason: context.leaseReason,
+					})
+					return
+				}
+				if (!canHandleCanvasKeyboardEvent(event, canvas)) {
+					this.recordKeyboard(eventWindow, event, canvas, false,
+						event.isComposing ? "composing" : isEditableTarget(event.target) ? "editable-target" : "canvas-editing",
+						{ phase: "keydown", contextSource: context.source, leaseReason: context.leaseReason })
+					return
+				}
+				if (!this.handledKeyboardEvents.consume(event)) {
+					this.recordKeyboard(eventWindow, event, canvas, false, "event-already-consumed", { phase: "keydown", contextSource: context.source, leaseReason: context.leaseReason })
+					return
+				}
 
 				isKeyDown[event.code] = true
 				if (event.ctrlKey || event.altKey || event.metaKey) {
@@ -218,6 +367,9 @@ export default class CanvasReferencePlugin extends Plugin {
 				if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
 					zoomShiftFallback = true
 				}
+				const shortcutId = this.diagnostics.enabled ? getCanvasShortcutId(event, this.settings) : undefined
+				const beforeAction = this.diagnostics.enabled ? captureCanvasActionState(canvas) : undefined
+				const diagnosticSessionId = this.diagnostics.sessionId
 				const handled = onCanvasKeyDown(event, isKeyDown, canvas, {
 					startContinuousZoom: (zoomTarget, shiftKey) => {
 						zoomCanvas = zoomTarget
@@ -228,6 +380,37 @@ export default class CanvasReferencePlugin extends Plugin {
 						void this.nodeRotation.advanceFromCanvas(rotateCanvas, direction)
 					},
 				}, this.settings)
+				const effectObserved = beforeAction === undefined ? undefined : beforeAction !== captureCanvasActionState(canvas)
+				this.recordKeyboard(eventWindow, event, canvas, handled,
+					handled ? effectObserved ? "shortcut-matched-sync-effect" : "shortcut-matched-no-sync-effect" : "unbound-key",
+					{ shortcutId, effectObserved, contextSource: context.source, leaseReason: context.leaseReason, phase: "keydown" })
+				if (handled && shortcutId && beforeAction !== undefined) {
+					const code = event.code
+					eventWindow.requestAnimationFrame(() => {
+						if (!this.diagnostics.enabled || this.diagnostics.sessionId !== diagnosticSessionId) return
+						this.diagnostics.record({
+							event: "effect",
+							code,
+							shortcutId,
+							effectObserved: beforeAction !== captureCanvasActionState(canvas),
+							phase: "next-animation-frame",
+							...this.diagnosticContext(eventWindow, undefined, canvas),
+						})
+					})
+					if (!effectObserved) eventWindow.setTimeout(() => {
+						if (!this.diagnostics.enabled || this.diagnostics.sessionId !== diagnosticSessionId) return
+						this.diagnostics.record({
+							event: "effect",
+							code,
+							shortcutId,
+							effectObserved: beforeAction !== captureCanvasActionState(canvas),
+							phase: "settled-150ms",
+							contextSource: context.source,
+							leaseReason: context.leaseReason,
+							...this.diagnosticContext(eventWindow, undefined, canvas),
+						})
+					}, 150)
+				}
 				if (handled) {
 					event.preventDefault()
 					// Directional WASD is intentionally allowed to continue to the
@@ -240,7 +423,10 @@ export default class CanvasReferencePlugin extends Plugin {
 				}
 			}
 			const onKeyUp = (event: KeyboardEvent): void => {
-				if (!this.handledKeyboardEvents.consume(event)) return
+				if (!this.handledKeyboardEvents.consume(event)) {
+					this.recordKeyboard(eventWindow, event, undefined, false, "event-already-consumed")
+					return
+				}
 				isKeyDown[event.code] = false
 				if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
 					zoomShiftFallback = isKeyDown['ShiftLeft'] === true || isKeyDown['ShiftRight'] === true
@@ -250,14 +436,27 @@ export default class CanvasReferencePlugin extends Plugin {
 					zoomCanvas = undefined
 				}
 			}
+			const onCompositionStart = (event: CompositionEvent): void => this.diagnostics.record({ event: "composition", phase: "start", ...this.diagnosticContext(eventWindow, event) })
+			const onCompositionEnd = (event: CompositionEvent): void => this.diagnostics.record({ event: "composition", phase: "end", ...this.diagnosticContext(eventWindow, event) })
+			const onFocusIn = (event: FocusEvent): void => this.diagnostics.record({ event: "focus", phase: "in", ...this.diagnosticContext(eventWindow, event) })
+			const onFocusOut = (event: FocusEvent): void => this.diagnostics.record({ event: "focus", phase: "out", ...this.diagnosticContext(eventWindow, event) })
+			const clearWindowContext = (): void => {
+				clearKeyState()
+				this.canvasPointerLeases.clear(eventWindow)
+			}
 			const onVisibilityChange = (): void => {
-				if (eventWindow.document.visibilityState !== "visible") clearKeyState()
+				this.diagnostics.record({ event: "visibility", phase: eventWindow.document.visibilityState, ...getDiagnosticWindowIds(eventWindow) })
+				if (eventWindow.document.visibilityState !== "visible") clearWindowContext()
 			}
 
 			eventWindow.addEventListener("keydown", onKeyDown, true)
 			eventWindow.addEventListener("keyup", onKeyUp, true)
-			eventWindow.addEventListener("blur", clearKeyState)
+			eventWindow.addEventListener("blur", clearWindowContext)
 			eventWindow.document.addEventListener("visibilitychange", onVisibilityChange)
+			eventWindow.document.addEventListener("compositionstart", onCompositionStart)
+			eventWindow.document.addEventListener("compositionend", onCompositionEnd)
+			eventWindow.document.addEventListener("focusin", onFocusIn)
+			eventWindow.document.addEventListener("focusout", onFocusOut)
 
 			let cleaned = false
 			const cleanup = (): void => {
@@ -265,8 +464,13 @@ export default class CanvasReferencePlugin extends Plugin {
 				cleaned = true
 				eventWindow.removeEventListener("keydown", onKeyDown, true)
 				eventWindow.removeEventListener("keyup", onKeyUp, true)
-				eventWindow.removeEventListener("blur", clearKeyState)
+				eventWindow.removeEventListener("blur", clearWindowContext)
 				eventWindow.document.removeEventListener("visibilitychange", onVisibilityChange)
+				eventWindow.document.removeEventListener("compositionstart", onCompositionStart)
+				eventWindow.document.removeEventListener("compositionend", onCompositionEnd)
+				eventWindow.document.removeEventListener("focusin", onFocusIn)
+				eventWindow.document.removeEventListener("focusout", onFocusOut)
+				this.diagnostics.record({ event: "listener", phase: "cleanup", ...getDiagnosticWindowIds(eventWindow) })
 				if (windowWithCleanup.__canvasBlockReferenceKeyboardCleanup === cleanup)
 					delete windowWithCleanup.__canvasBlockReferenceKeyboardCleanup
 				this.windowCleanups.delete(eventWindow)
@@ -274,6 +478,7 @@ export default class CanvasReferencePlugin extends Plugin {
 				this.zoomControllers.delete(eventWindow)
 				this.keyDownStates.delete(eventWindow)
 				this.keyEventWindows.release(eventWindow)
+				this.canvasPointerLeases.clear(eventWindow)
 			}
 			windowWithCleanup.__canvasBlockReferenceKeyboardCleanup = cleanup
 			this.windowCleanups.set(eventWindow, cleanup)
@@ -292,6 +497,19 @@ export default class CanvasReferencePlugin extends Plugin {
 		this.registerEvent(this.app.workspace.on("window-close", (_workspaceWindow, eventWindow) => {
 			this.windowCleanups.get(eventWindow)?.()
 		}))
+		this.registerEvent(this.app.workspace.on("active-leaf-change" as never, ((leaf: unknown) => {
+			const view = (leaf as { view?: { containerEl?: HTMLElement; file?: { path?: string }; getViewType?: () => string } } | null | undefined)?.view
+			const eventWindow = view?.containerEl?.ownerDocument.defaultView
+			this.canvasPointerLeases.clear(eventWindow)
+			this.diagnostics.record({
+				event: "tab",
+				phase: "active-leaf-change",
+				viewType: view?.getViewType?.(),
+				canvasPath: view?.file?.path,
+				activeElement: describeDiagnosticElement(eventWindow?.document.activeElement),
+				...getDiagnosticWindowIds(eventWindow),
+			})
+		}) as never))
 	}
 
 	/**
@@ -323,9 +541,20 @@ export default class CanvasReferencePlugin extends Plugin {
 				isConnectorActive(event, this.connectorCode, connectorHeld.held)
 
 			const onPointerDown = (event: PointerEvent): void => {
+				const context = updateCanvasPointerLeaseFromEvent(this.app, event, eventWindow, this.canvasPointerLeases)
+				if (this.diagnostics.enabled) {
+					this.diagnostics.record({
+						event: "pointer",
+						phase: "down",
+						pointerType: event.pointerType,
+						contextSource: context.source,
+						leaseReason: context.leaseReason,
+						...this.diagnosticContext(eventWindow, event, context.canvas),
+					})
+				}
 				if (this.connectorCode === "") return
 				if (!isConnectorHeld(event)) return // 平时点击零开销，直接短路（只有按下连接键才「领域展开」）
-				const canvas = getCanvasFromEvent(this.app, event, eventWindow)
+				const canvas = context.canvas
 				if (!canvas) return
 				onCanvasPointerDown(canvas, tracker, true)
 			}
@@ -445,6 +674,13 @@ export default class CanvasReferencePlugin extends Plugin {
 		this.connectorHeldStates.clear()
 		this.connectorTrackers.clear()
 		this.mouseEventWindows.clear()
+		this.pendingMobileDiagnosticReport = undefined
+		if (this.diagnostics.enabled) {
+			try { this.activePanDiagnosticsBridge?.stopDiagnostics() } catch { /* optional bridge may unload independently */ }
+			this.activePanDiagnosticsBridge = undefined
+			this.panDiagnosticsStatus = "not-started"
+			this.diagnostics.stop()
+		}
 	}
 
 	registerEvents(): void {
@@ -485,6 +721,16 @@ export default class CanvasReferencePlugin extends Plugin {
 		// 添加命令
 		for (const cmdF of COMMANDS)
 			this.addCommand(cmdF(this.app));
+		this.addCommand({
+			id: "start-mobile-canvas-diagnostics",
+			name: "移动端 Canvas 诊断：开始（内存）",
+			callback: () => this.startMobileDiagnostics(),
+		})
+		this.addCommand({
+			id: "stop-copy-mobile-canvas-diagnostics",
+			name: "移动端 Canvas 诊断：停止并复制报告",
+			callback: () => { void this.stopAndCopyMobileDiagnostics() },
+		})
 	}
 
 	patchWorkspaceLeaf(): void {

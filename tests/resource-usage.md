@@ -130,5 +130,64 @@
 | 2026-08-24 03:14:46.688Z | `life-series-final-cli-errors` / `obsidian vault=life-series dev:errors` | `No errors captured`，退出码 0；短 CLI 进程，可能漏采 | 228.92 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
 | 2026-08-24 03:51:16.433Z | `runtime-state-life-panel` / `obsidian vault=life-panel eval` | 运行态窗口/清理器/注册数均为 2，退出码 0；短 CLI 进程，可能漏采 | 392.81 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
 | 2026-08-24 03:51:17.370Z | `runtime-state-life-series` / `obsidian vault=life-series eval` | 运行态窗口/清理器/注册数均为 2，退出码 0；短 CLI 进程，可能漏采 | 296.29 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-24 04:15:01.007Z | `status-20260824-life-panel-runtime-v1` / `obsidian eval vault=life-panel` | 两插件均 enabled；白板 0.5.1、Pan 1.0.8；退出码 0；短 CLI 进程，可能漏采 | 287.86 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-24 04:15:00.975Z | `status-20260824-life-series-runtime-v1` / `obsidian eval vault=life-series` | CLI 返回的 `app.vault.getName()` 仍为 `life-panel`，不能作为 life-series 运行态证据；退出码 0；短 CLI 进程，可能漏采 | 296.51 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-24 04:15:01.041Z | `status-20260824-life-panel-errors-v1` / `obsidian dev:errors vault=life-panel` | `No errors captured`；退出码 0；短 CLI 进程，可能漏采 | 288.26 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-24 04:15:01.063Z | `status-20260824-life-series-errors-v1` / `obsidian dev:errors vault=life-series` | `No errors captured`；退出码 0；短 CLI 进程，可能漏采 | 323.16 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-24 04:15:37.319Z | `status-20260824-cli-vault-routing-help-v1` / `obsidian help` | 确认 CLI 支持 `vault=<name>`、`eval`、`plugin`、`plugins:enabled`；退出码 0；短 CLI 进程，可能漏采 | 248.51 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-24 04:15:37.357Z | `status-20260824-life-series-plugins-v1` / `obsidian plugins vault=life-series` | 返回已安装插件列表；退出码 0；列表中含白板新 ID 与 Pan；短 CLI 进程，可能漏采 | 243.58 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-24 04:15:37.391Z | `status-20260824-life-panel-plugins-v1` / `obsidian plugins vault=life-panel` | 返回已安装插件列表；退出码 0；列表中含白板新 ID 与 Pan；短 CLI 进程，可能漏采 | 273.44 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-24 04:17:21.054Z | `status-20260824-planning-arc-0.5.1-build-v1` / `npm run build` | 成功，退出码 0 | 1644.31 ms | 277,499,904 B（264.64 MiB） | 2.047 s | 2 |
+| 2026-08-24 04:17:23.108Z | `status-20260824-planning-arc-0.5.1-tests-v1` / `npm test` | 51/51，退出码 0 | 2187.10 ms | 270,225,408 B（257.71 MiB） | 2.109 s | 2 |
+| 2026-08-24 04:17:25.684Z | `status-20260824-pan-1.0.8-build-v1` / `npm run build` | 成功，退出码 0；短进程采样数 1，峰值可能漏采 | 1075.20 ms | 83,144,704 B（79.29 MiB） | 0.234 s | 1 |
+| 2026-08-24 04:17:27.141Z | `status-20260824-pan-1.0.8-tests-v1` / `npm test` | 11/11，退出码 0 | 1876.34 ms | 272,310,272 B（259.70 MiB） | 1.844 s | 2 |
+| 2026-08-24 04:19:43.815Z | `status-20260824-cli-vaults-verbose-v1` / `obsidian vaults verbose` | 确认 `life-panel` 与 `life-series` 均被 Obsidian 注册；退出码 0；短 CLI 进程，可能漏采 | 455.77 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-24 04:19:44.690Z | `status-20260824-cli-vault-routing-v2` / `obsidian vault info/eval vault=life-series` | CLI 实际返回 `H:\A137442\Document\Notes\life-panel`；退出码 0；短 CLI 进程，可能漏采 | 192.92 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-24 04:19:45.260Z | `status-20260824-obsidian-version-v1` / `obsidian version` | Obsidian 1.13.7（installer 1.13.7）；退出码 0；短 CLI 进程，可能漏采 | 202.77 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `arc-mobile-ime-body-context-tests-v1` | 56/58；旧极简 Window 测试桩缺少 document，暴露 shell 检测需安全降级，退出码 1 | 2420.51 ms | 286,937,088 B（273.64 MiB） | 2.844 s | 2 |
+| 2026-08-26 | `arc-mobile-ime-body-context-tests-v2` | 58/58，退出码 0；覆盖 BODY/HTML 焦点、同窗活动 Canvas、笔记与跨窗负路径、诊断桥三类注册表 | 2791.57 ms | 300,732,416 B（286.80 MiB） | 3.219 s | 2 |
+| 2026-08-26 | `arc-mobile-ime-body-context-build-v1` | 成功，退出码 0 | 1563.31 ms | 268,926,976 B（256.47 MiB） | 2.625 s | 2 |
+| 2026-08-26 | `arc-mobile-ime-body-reload-v1` | ARC 重载成功；短 CLI 进程，可能漏采 | 440.98 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `pan-mobile-ime-body-reload-v1` | 与 ARC 并发重载时瞬时返回“插件不存在”，后续运行时注册表证实插件已加载；短 CLI 进程，可能漏采 | 495.99 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-plugins-list-v1` | 已安装插件列表包含 Pan 与 ARC；短 CLI 进程，可能漏采 | 361.05 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-vault-info-v1` | CLI 路由确认 life-panel 路径；短 CLI 进程，可能漏采 | 361.05 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `obsidian-cli-plugin-help-v1` | 核对插件 CLI 子命令；短 CLI 进程，可能漏采 | 256.80 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-dev-errors-after-pan-deploy-v1` | 未见 ARC/Pan 错误；仅有既存 Iconic 错误；短 CLI 进程，可能漏采 | 256.59 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-pan-runtime-registry-v1` | 首次 eval 引号错误，未执行运行时表达式；短 CLI 进程，可能漏采 | 503.80 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-plugin-runtime-keys-v2` | 运行时注册表包含 Pan 与 ARC；短 CLI 进程，可能漏采 | 288.58 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `pan-mobile-ime-body-reload-v2` | Pan 顺序重载成功；短 CLI 进程，可能漏采 | 420.73 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-pan-bridge-runtime-smoke-v1` | ARC 报告 `pan-bridge-ready`，Pan 同会话启动并记录 26 条；短 CLI 进程，可能漏采 | 332.40 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-dev-errors-after-mobile-ime-fix-v2` | 未见 ARC/Pan 错误；仅有既存 Iconic 错误；短 CLI 进程，可能漏采 | 318.28 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-active-view-before-body-probe-v1` | 活动标签为 Markdown；为避免打断用户现场，未强制切换 Canvas 做合成事件探针；短 CLI 进程，可能漏采 | 381.13 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `mobile-regression-rollback-arc-tests-v1` | 61/61，退出码 0；覆盖 BODY/HTML 负路径、1024 条诊断容量、动作指纹脱敏和桥接终态 | 2608.55 ms | 292,831,232 B（279.27 MiB） | 2.844 s | 2 |
+| 2026-08-26 | `mobile-regression-rollback-arc-build-v1` | 成功，退出码 0 | 1693.11 ms | 258,670,592 B（246.69 MiB） | 2.375 s | 2 |
+| 2026-08-26 | `mobile-regression-rollback-pan-tests-v1` | 16/16，退出码 0；覆盖 BODY/HTML 负路径和 1024 条诊断容量 | 2416.83 ms | 322,629,632 B（307.68 MiB） | 3.750 s | 2 |
+| 2026-08-26 | `mobile-regression-rollback-pan-build-v1` | 成功，退出码 0；短进程采样数 1，峰值可能漏采 | 1460.07 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-deploy-arc-mobile-regression-rollback-v1` | 构建产物复制成功，退出码 0 | 550.17 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-deploy-pan-mobile-regression-rollback-v1` | 构建产物复制成功，退出码 0 | 550.17 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-reload-arc-mobile-regression-rollback-v1` | ARC 顺序重载成功，退出码 0 | 549.03 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-reload-pan-mobile-regression-rollback-v1` | Pan 顺序重载成功，退出码 0 | 357.71 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-errors-after-mobile-regression-rollback-v1` | `No errors captured`，退出码 0 | 238.58 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-desktop-canvas-api-shape-probe-v1` | 只读确认 Canvas 原型含 `zoomBy/panBy/panTo/setViewport/markViewportChanged/requestFrame`，退出码 0 | 319.73 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-desktop-canvas-viewport-method-probe-v1` | 只读确认 `zoomBy` 与 `panBy` 的真实桌面调用语义，退出码 0 | 293.04 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `pan-mobile-api-telemetry-tests-v1` | 23/23，退出码 0；覆盖有界 API 枚举、32 KiB 硬上限、异常脱敏、全局异常监听清理、100 ms tick 采样与 interval 隔离 | 2273.16 ms | 341,319,680 B（325.51 MiB） | 4.172 s | 2 |
+| 2026-08-26 | `pan-mobile-api-telemetry-build-v1` | 成功，退出码 0；短进程采样数 1，峰值可能漏采 | 1868.78 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `arc-mobile-pointer-lease-tests-v1` | 失败，退出码 1；TypeScript 未收窄 `EventTarget \| null`，未进入测试运行 | 2523.84 ms | 318,603,264 B（303.84 MiB） | 3.781 s | 2 |
+| 2026-08-26 | `pan-mobile-pointer-lease-tests-v1` | 失败，退出码 1；与 ARC 相同的类型收窄问题，未进入测试运行 | 2161.12 ms | 324,419,584 B（309.39 MiB） | 3.922 s | 2 |
+| 2026-08-26 | `arc-mobile-pointer-lease-tests-v2` | 63/63，退出码 0；覆盖同窗 BODY/HTML 租约命中与输入框、Modal、跨窗、Canvas 关闭负路径 | 2928.94 ms | 319,447,040 B（304.65 MiB） | 3.906 s | 2 |
+| 2026-08-26 | `pan-mobile-pointer-lease-tests-v2` | 25/25，退出码 0；覆盖 Pan 同窗租约恢复与各失效边界 | 2937.46 ms | 318,169,088 B（303.43 MiB） | 4.031 s | 2 |
+| 2026-08-26 | `arc-mobile-pointer-lease-build-v1` | 成功，退出码 0 | 1726.88 ms | 76,722,176 B（73.17 MiB） | 0.359 s | 1 |
+| 2026-08-26 | `pan-mobile-pointer-lease-build-v1` | 成功，退出码 0；短进程采样数 1，峰值可能漏采 | 1509.54 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-deploy-arc-pointer-lease-v1` | ARC 构建产物复制成功，退出码 0 | 325.87 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-deploy-pan-pointer-lease-v1` | Pan 构建产物复制成功，退出码 0 | 267.84 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-clear-errors-pointer-lease-v1` | 清空 8 条既有错误，退出码 0 | 261.28 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-reload-pan-pointer-lease-v1` | Pan 顺序重载成功，退出码 0 | 609.42 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-reload-arc-pointer-lease-v1` | ARC 顺序重载成功，退出码 0 | 294.41 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-errors-pointer-lease-v1` | `No errors captured`，退出码 0 | 269.66 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-pointer-lease-runtime-revision-v2` | CLI eval 引号嵌套错误，返回 `canvas is not defined`；未修改插件状态 | 216.44 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-pointer-lease-runtime-revision-v4` | Pan 运行态为 1.0.9，诊断修订号 `mobile-canvas-pointer-lease-v1`，报告 26 条，退出码 0 | 238.01 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 | `life-panel-errors-after-runtime-revision-v1` | `No errors captured`，退出码 0 | 368.50 ms | 0 B（短 CLI 进程，可能漏采） | 0 s（短 CLI 进程，可能漏采） | 1 |
+| 2026-08-26 11:06:30.144Z | `npm test` | 63/63，退出码 0；0.5.2 发布验证 | 2974.51 ms | 343,756,800 B（327.83 MiB） | 4.719 s | 2 |
+| 2026-08-26 11:06:40.905Z | `npm run build` | 成功，退出码 0；0.5.2 发布验证，短进程采样数 1 | 1780.03 ms | 0 B（短进程可能漏采） | 0 s（短进程可能漏采） | 1 |
 
 测量工具：[`scripts/measure-command.ps1`](../scripts/measure-command.ps1)。峰值工作集是 Windows 进程树内存峰值，不等同于整台机器的总内存占用；短于采样间隔的瞬时峰值可能被漏采。

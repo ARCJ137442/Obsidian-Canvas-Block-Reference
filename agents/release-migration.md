@@ -1,12 +1,12 @@
 # 版本、插件 ID 与发布迁移
 
-> 最后更新：2026-08-21
+> 最后更新：2026-08-26
 
 ## 当前身份
 
 - 显示名：`Obsidian白板推演-ARC.ver`
 - ID：`obsidian-whiteboard-deduction-arc`
-- 当前 minor：`0.2.0`
+- 当前发布线：`0.5.x`
 - 旧 ID：`canvas-block-reference`
 
 插件 ID 是 Obsidian 的身份，不是 Canvas 文件格式。改变 ID 时必须同时检查 manifest、发布压缩包目录、Vault 启用列表、命令热键和插件 data。
@@ -22,11 +22,13 @@
 
 ## 发布清单
 
+- `main` 是长期自用与发布主线；提交先推送 `main`，GitHub Actions CI 通过后再创建 `v<version>` 标签。
 - `manifest.json` 的 id、name、version、author、authorUrl 与 `versions.json` 一致。
 - `package.json`/lockfile 的版本一致；构建成功。
 - `.github/workflows/release.yml` 的 `PLUGIN_NAME` 与新 ID 一致。
 - zip 内目录名为新 ID，且包含 `main.js`、`manifest.json`、`styles.css`。
 - Release 同时提供 zip 和三个单文件资产；下载后可直接安装。
+- Release 工作流必须在标签代码上再次执行 `npm ci`、测试和构建；工作流通过后才算发布完成。
 - README 的 BRAT、手动安装、迁移和快捷键说明与当前身份一致。
 - 发布后再次检查安装产物哈希、Obsidian 运行态版本和主副窗口负路径。
 

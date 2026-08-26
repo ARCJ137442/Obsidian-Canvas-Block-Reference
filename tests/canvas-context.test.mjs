@@ -15,13 +15,17 @@ import edgeOperations from "../.test-build/canvas-edge-operations.js"
 import zoomModule from "../.test-build/canvas-zoom.js"
 import guardModule from "../.test-build/keyboard-event-guard.js"
 import registryModule from "../.test-build/window-registration.js"
+import leaseModule from "../.test-build/canvas-pointer-lease.js"
 
 const {
 	canHandleCanvasKeyboardEvent,
 	getCanvasFromEvent,
 	isCanvasEditing,
 	isEditableTarget,
+	resolveCanvasFromEvent,
+	updateCanvasPointerLeaseFromEvent,
 } = context
+const { CanvasPointerLeaseRegistry } = leaseModule
 const { canPropagateCanvasShortcut, getCanvasShortcutId, getCanvasShortcutConflicts, getCanvasTitleLevel, DEFAULT_CANVAS_SHORTCUT_SETTINGS, normalizeCanvasShortcutSettings } = shortcuts
 const { commitCanvasMutation } = mutations
 const { createCanvasElementId } = uuid
@@ -191,6 +195,83 @@ test("窗口级键盘事件只回退到同一窗口的唯一 Canvas", () => {
 	assert.equal(getCanvasFromEvent(app, event, windowA), canvasA)
 	assert.equal(getCanvasFromEvent(app, event, windowB), canvasB)
 	assert.equal(getCanvasFromEvent(app, event), undefined)
+})
+
+test("BODY 与 HTML 即使位于活动 Canvas 窗口也不回退", () => {
+	const windowA = {}
+	const body = { nodeType: 1, tagName: "BODY" }
+	const html = { nodeType: 1, tagName: "HTML" }
+	const documentA = { defaultView: windowA, activeElement: body }
+	body.ownerDocument = documentA
+	html.ownerDocument = documentA
+	windowA.document = documentA
+	const root = { ownerDocument: documentA, contains: () => false }
+	const canvas = { name: "A" }
+	const canvasView = { containerEl: root, canvas, getViewType: () => "canvas" }
+	const app = {
+		workspace: {
+			activeLeaf: { view: canvasView },
+			iterateAllLeaves(callback) { callback({ view: canvasView }) },
+		},
+	}
+
+	assert.equal(getCanvasFromEvent(app, { target: body, composedPath: () => [body, html] }, windowA), undefined)
+	assert.equal(getCanvasFromEvent(app, { target: html, composedPath: () => [html] }, windowA), undefined)
+})
+
+test("Canvas 指针租约只在同窗口 BODY/HTML 焦点残留时恢复上下文", () => {
+	const body = { nodeType: 1, tagName: "BODY" }
+	const html = { nodeType: 1, tagName: "HTML" }
+	const canvasTarget = { nodeType: 1, tagName: "DIV" }
+	const documentA = { activeElement: body, querySelector: () => null }
+	const windowA = { document: documentA }
+	documentA.defaultView = windowA
+	body.ownerDocument = documentA
+	html.ownerDocument = documentA
+	canvasTarget.ownerDocument = documentA
+	const canvasRoot = { ownerDocument: documentA, contains: target => target === canvasTarget }
+	const canvas = { name: "A", selection: new Set() }
+	const view = { containerEl: canvasRoot, canvas, getViewType: () => "canvas" }
+	const app = { workspace: { iterateAllLeaves(callback) { callback({ view }) } } }
+	const leases = new CanvasPointerLeaseRegistry()
+
+	assert.equal(updateCanvasPointerLeaseFromEvent(app, { target: canvasTarget, composedPath: () => [canvasTarget] }, windowA, leases).source, "event-dom")
+	const resolved = resolveCanvasFromEvent(app, { target: body, composedPath: () => [body, html] }, windowA, leases)
+	assert.equal(resolved.canvas, canvas)
+	assert.equal(resolved.source, "pointer-lease")
+	assert.equal(resolved.leaseReason, "lease-hit")
+})
+
+test("Canvas 指针租约拒绝外部控件、Modal、跨窗口和已关闭 Canvas", () => {
+	const bodyA = { nodeType: 1, tagName: "BODY" }
+	const bodyB = { nodeType: 1, tagName: "BODY" }
+	const inputA = { nodeType: 1, tagName: "INPUT" }
+	const documentA = { activeElement: bodyA, querySelector: () => null }
+	const documentB = { activeElement: bodyB, querySelector: () => null }
+	const windowA = { document: documentA }
+	const windowB = { document: documentB }
+	documentA.defaultView = windowA
+	documentB.defaultView = windowB
+	for (const element of [bodyA, inputA]) element.ownerDocument = documentA
+	bodyB.ownerDocument = documentB
+	const canvas = { name: "A" }
+	const root = { ownerDocument: documentA, contains: () => false }
+	let open = true
+	const app = { workspace: { iterateAllLeaves(callback) { if (open) callback({ view: { containerEl: root, canvas, getViewType: () => "canvas" } }) } } }
+	const leases = new CanvasPointerLeaseRegistry()
+	leases.remember(windowA, canvas)
+
+	assert.equal(resolveCanvasFromEvent(app, { target: bodyB, composedPath: () => [bodyB] }, windowB, leases).canvas, undefined)
+	documentA.activeElement = inputA
+	assert.equal(resolveCanvasFromEvent(app, { target: bodyA, composedPath: () => [bodyA] }, windowA, leases).leaseReason, "lease-active-element-blocked")
+	leases.remember(windowA, canvas)
+	documentA.activeElement = bodyA
+	documentA.querySelector = () => ({ className: "modal-container" })
+	assert.equal(resolveCanvasFromEvent(app, { target: bodyA, composedPath: () => [bodyA] }, windowA, leases).leaseReason, "lease-overlay-blocked")
+	leases.remember(windowA, canvas)
+	documentA.querySelector = () => null
+	open = false
+	assert.equal(resolveCanvasFromEvent(app, { target: bodyA, composedPath: () => [bodyA] }, windowA, leases).leaseReason, "lease-canvas-unavailable")
 })
 
 test("窗口注册表在重载和关闭时可释放并重新注册", () => {

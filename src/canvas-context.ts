@@ -1,5 +1,6 @@
 import type { App } from "obsidian"
 import type { Canvas } from "obsidian/canvas"
+import type { CanvasPointerLeaseReason, CanvasPointerLeaseRegistry } from "./canvas-pointer-lease"
 
 type CanvasViewCandidate = {
 	canvas: Canvas
@@ -48,6 +49,61 @@ export function getCanvasFromEvent(app: App, event: Event, eventWindow?: Window)
 
 	const activeLeafView = app.workspace.activeLeaf?.view
 	return windowCandidates.find(candidate => candidate.view === activeLeafView)?.canvas
+}
+
+export type CanvasContextResolution = {
+	canvas?: Canvas
+	source: "event-dom" | "pointer-lease" | "none"
+	leaseReason?: CanvasPointerLeaseReason
+}
+
+/** Resolve direct DOM ownership first, then a previously proven BODY/HTML pointer lease. */
+export function resolveCanvasFromEvent(
+	app: App,
+	event: Event,
+	eventWindow: Window,
+	leases: CanvasPointerLeaseRegistry<Canvas>,
+): CanvasContextResolution {
+	const direct = getCanvasFromEvent(app, event, eventWindow)
+	if (direct) return { canvas: direct, source: "event-dom" }
+
+	const leased = leases.resolve(event, eventWindow, {
+		blocked: hasBlockingCanvasOverlay(eventWindow.document),
+		isCanvasAvailable: canvas => isCanvasAvailableInWindow(app, canvas, eventWindow),
+	})
+	return leased.canvas
+		? { canvas: leased.canvas, source: "pointer-lease", leaseReason: leased.reason }
+		: { source: "none", leaseReason: leased.reason }
+}
+
+/** Pointer DOM is the only operation that may create or replace a lease. */
+export function updateCanvasPointerLeaseFromEvent(
+	app: App,
+	event: Event,
+	eventWindow: Window,
+	leases: CanvasPointerLeaseRegistry<Canvas>,
+): CanvasContextResolution {
+	const direct = getCanvasFromEvent(app, event, eventWindow)
+	if (direct) {
+		leases.remember(eventWindow, direct)
+		return { canvas: direct, source: "event-dom", leaseReason: "lease-hit" }
+	}
+	leases.clear(eventWindow)
+	return { source: "none", leaseReason: "lease-non-shell-target" }
+}
+
+function isCanvasAvailableInWindow(app: App, canvas: Canvas, eventWindow: Window): boolean {
+	let available = false
+	app.workspace.iterateAllLeaves(leaf => {
+		if (available) return
+		const view = leaf.view as (typeof leaf.view & { canvas?: Canvas; containerEl?: HTMLElement }) | null
+		if (view?.canvas === canvas && view.containerEl?.ownerDocument.defaultView === eventWindow) available = true
+	})
+	return available
+}
+
+function hasBlockingCanvasOverlay(document: Document): boolean {
+	try { return Boolean(document.querySelector?.(".modal-container, .prompt")) } catch { return true }
 }
 
 function isElementTarget(target: unknown): target is Element {

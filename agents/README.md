@@ -10,13 +10,17 @@
 | 改 Canvas 数据或链接能力 | [`architecture.md`](architecture.md) | 事件上下文、mutation transaction、跨平台读取和 monkey patch 边界 |
 | 写测试或做 CLI 实测 | [`testing-and-runtime.md`](testing-and-runtime.md) | 资源采样、测试矩阵、探针、错误归因和验收证据 |
 | 改版本、插件 ID 或发布包 | [`release-migration.md`](release-migration.md) | data.json、热键迁移、旧目录回滚和 Release 资产 |
+| 安排下一轮迭代 | [`roadmap.md`](roadmap.md) | 已验证基线、优先级、验收条件和明确不做事项 |
 
 ## 代码入口速查
 
 | 文件 | 职责 |
 |---|---|
 | `src/main.ts` | 插件生命周期、每窗口监听、清理和设置持久化 |
-| `src/canvas-context.ts` | 从事件 DOM 解析 Canvas 与负上下文保护 |
+| `src/canvas-context.ts` | 从事件 DOM 或有界指针租约解析 Canvas 与负上下文保护 |
+| `src/canvas-pointer-lease.ts` | 每 Window Canvas 指针归属证明与失效条件 |
+| `src/diagnostics.ts` | 默认关闭的有界内存诊断、效果指纹与脱敏协议 |
+| `src/plugin-bridge.ts` | 与 Canvas Keyboard Pan 的可选诊断桥 |
 | `src/canvas-shortcuts.ts` | 快捷键定义、按键族配置规范化、冲突检测和方向/标题级别解析 |
 | `src/canvas-keydown-features.ts` | 白板按键行为；只消费已解析的 shortcut ID |
 | `src/canvas-mutations.ts` | Canvas 修改后的统一刷新/保存边界 |
