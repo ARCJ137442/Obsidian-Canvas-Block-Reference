@@ -357,4 +357,8 @@ ARC 构建产物已部署到 `life-panel` 插件目录，`main.js`、`manifest.j
 | `prerelease-0.6.0-beta.0-runtime-version` | 运行版本 0.6.0-beta.0；元白板 27 卡片、默认分层/正方形、1 固定位置 | 603.15 | 0 B | 0 s | 1 |
 | `prerelease-0.6.0-beta.0-runtime-errors` | `No errors captured` | 683.23 | 0 B | 0 s | 1 |
 
-短测试与构建读数可能漏采；上述 CLI 进程也可能漏采资源。主线 CI 与 Release 工作流状态待推送后记录。
+短测试与构建读数可能漏采；上述 CLI 进程也可能漏采资源。
+
+- `main` 提交 `80ba1fcaac607f275ee1d00711aed66403754a7a` 的 CI run `38899741543`：测试与构建通过。
+- `v0.6.0-beta.0` Release run `38899965300`：标签检出、`npm ci`、测试、构建、zip 打包和上传均通过。
+- GitHub Release 已标记为 prerelease，包含版本 zip、`main.js`、`manifest.json` 与 `styles.css`。
