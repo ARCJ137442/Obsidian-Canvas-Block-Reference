@@ -55,12 +55,13 @@ export async function openCanvasAndFocusNode(
 	nodeId: string,
 	preferOtherWindow = false,
 	sourceWindowArg?: Window | null,
+	replaceLeaf?: WorkspaceLeaf,
 ): Promise<boolean> {
 	const file = app.vault.getAbstractFileByPath(canvasPath);
 	// 📌 用结构守卫而非 instanceof TFile，保持「obsidian 仅类型导入」。
 	if (!isCanvasFile(file)) return false;
 
-	const result = await openOrFocusFileLeaf(app, file as TFile, preferOtherWindow, sourceWindowArg);
+	const result = await openOrFocusFileLeaf(app, file as TFile, preferOtherWindow, sourceWindowArg, replaceLeaf);
 	if (!result) return false;
 
 	// 📌 从别的标签页/窗口切换过来时，canvas 需要先成为活动视图，未激活前 select 不生效。
@@ -131,7 +132,19 @@ async function openOrFocusFileLeaf(
 	file: TFile,
 	preferOtherWindow = false,
 	sourceWindowArg?: Window | null,
+	replaceLeaf?: WorkspaceLeaf,
 ): Promise<LeafNavigationResult | undefined> {
+	if (replaceLeaf) {
+		try {
+			await replaceLeaf.openFile(file);
+			await app.workspace.revealLeaf(replaceLeaf);
+			app.workspace.setActiveLeaf(replaceLeaf, { focus: true });
+			replaceLeaf.getContainer().win.focus();
+			return { leaf: replaceLeaf, mode: "opened-new" };
+		} catch {
+			return undefined;
+		}
+	}
 	const sourceWin = sourceWindowArg ?? sourceWindow(app);
 	const leaves = new Set<WorkspaceLeaf>();
 	const viewType = fileViewType(file);

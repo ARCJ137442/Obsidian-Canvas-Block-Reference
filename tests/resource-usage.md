@@ -191,3 +191,170 @@
 | 2026-08-26 11:06:40.905Z | `npm run build` | 成功，退出码 0；0.5.2 发布验证，短进程采样数 1 | 1780.03 ms | 0 B（短进程可能漏采） | 0 s（短进程可能漏采） | 1 |
 
 测量工具：[`scripts/measure-command.ps1`](../scripts/measure-command.ps1)。峰值工作集是 Windows 进程树内存峰值，不等同于整台机器的总内存占用；短于采样间隔的瞬时峰值可能被漏采。
+
+## 2026-10-16 元白板可读入口与当前标签跳转验证
+
+以下项目均通过 `scripts/measure-command.ps1` 采样。各次均只采到 1 个样本，峰值工作集与 CPU 读数为 0；这些短进程的瞬时资源峰值可能漏采，不能据此视为实际资源消耗为零。
+
+| Label | 结果 | 墙钟 ms |
+|---|---|---:|
+| `meta-human-context-tests` | 失败：入口标签挑选到了较远任务；调整语义评分 | 1975.87 |
+| `meta-human-context-tests-v2` | 失败：地点提示把远处场景合并进标签；收紧邻近范围 | 1654.90 |
+| `meta-human-context-tests-v3` | 72/72 通过 | 1677.35 |
+| `meta-human-context-build` | 失败：新增预览键盘路径漏传 source leaf | 1633.00 |
+| `meta-human-context-build-v2` | 构建成功 | 2056.47 |
+| `meta-human-context-tests-final` | 72/72 通过 | 1727.85 |
+| `meta-human-context-build-final` | 构建成功，main.js 287.2 kb | 1781.48 |
+| `meta-human-context-life-panel-reload` | ARC 重载成功 | 1024.30 |
+| `meta-human-context-life-panel-commands` | 确认回溯与元白板命令已注册 | 1103.54 |
+| `meta-human-context-life-panel-plugin-status` | ARC 0.5.2 已启用 | 1103.87 |
+| `meta-human-context-life-panel-errors` | 观察到既有 Advanced Canvas、Quiet Outline 与 Obsidian host 错误 | 1029.34 |
+| `meta-human-context-open-view` | 元白板命令已执行 | 443.73 |
+| `meta-human-context-title-dom` | 标题及 27 张白板、30 组关系 | 965.62 |
+| `meta-human-context-cards-dom` | 27 张白板卡片 | 954.62 |
+| `meta-human-context-edges-dom` | 30 条关系边 | 938.62 |
+| `meta-human-context-weight-labels-dom` | 只显示两个重复关系的权重 `2` | 866.46 |
+| `meta-human-context-fresh-screenshot` | 截图时原 MetaCanvas 标签未激活；据此补上复用标签时的显式激活 | 446.96 |
+| `meta-human-context-life-panel-reload-final` | 最新构建重载成功 | 1056.49 |
+| `meta-eval-smoke` | CLI eval 返回 `2` | 416.99 |
+| `meta-open-activate-final` | 打开已存在元白板后激活其主工作区标签 | 491.24 |
+| `meta-active-view-probe` | 活动视图为 `arc-meta-canvas` | 485.06 |
+| `meta-final-active-screenshot` | 最新 UI 截图已检查 | 630.58 |
+| `meta-backtrack-open-target` | 打开目标白板 `202608 生活物资整理.canvas` | 604.17 |
+| `meta-backtrack-capture-source-leaf` | 源 leaf 为目标 Canvas 标签 | 496.73 |
+| `meta-backtrack-source-picker` | 回溯来源选择器打开 | 468.61 |
+| `meta-backtrack-source-picker-dom` | 显示三个来源白板名称 | 422.48 |
+| `meta-backtrack-select-source-home` | 选择 `home.canvas` | 514.89 |
+| `meta-backtrack-entry-picker-dom` | 显示“惠州 集体任务”“家里 · 走前最后一天”，无坐标 | 416.27 |
+| `meta-backtrack-select-entry` | 选择人类可读入口 | 607.06 |
+| `meta-backtrack-tab-replacement-probe` | 同一 leaf 已切换至 `home.canvas`，选中目标节点 | 474.90 |
+| `meta-backtrack-focus-center-probe` | 目标节点中心与 Canvas 视口中心均为 `(7700, -4280)` | 439.85 |
+| `meta-open-before-edge-test` | 再次打开并激活元白板 | 466.68 |
+| `meta-edge-labels-dom` | 关系边名称可读，默认权重 1 不显示 | 434.00 |
+| `meta-edge-open-entry-picker` | 失败：SVGPathElement 无 `.click()`；改用事件分发 | 453.66 |
+| `meta-edge-open-entry-picker-v2` | 关系边打开入口选择器成功 | 418.84 |
+| `meta-edge-entry-picker-dom` | 显示入口名称与类型，不含坐标 | 422.87 |
+| `meta-edge-select-entry` | 选择入口成功 | 643.14 |
+| `meta-edge-tab-replacement-probe` | 元白板所在 leaf 被替换为 `home.canvas`，目标节点已选中 | 430.72 |
+| `meta-open-board-action-test` | 打开元白板以验证详情中的“打开白板”动作 | 466.68 |
+| `meta-open-board-replace-current-leaf` | 详情动作已执行 | 585.75 |
+| `meta-open-board-replacement-probe` | 同一 leaf 已切换至 `home.canvas` | 390.73 |
+| `meta-final-clear-old-errors` | 清除先前记录的 3 条宿主/第三方错误 | 439.40 |
+| `meta-final-open-canvas-view` | 最终回到元白板主工作区标签 | 430.11 |
+| `meta-final-errors-after-clean` | `No errors captured` | 382.26 |
+| `meta-final-dom-summary` | eval 表达式转义失败，未影响 Obsidian 状态 | 392.07 |
+| `meta-final-dom-summary-v2` | 活动视图正确；27 卡片、30 关系、仅两条权重 2、无坐标回退文本 | 441.64 |
+
+运行态安装文件 `main.js`、`manifest.json`、`styles.css` 与 ARC 源码构建文件 SHA-256 一致。未发版、未提交、未推送。
+
+## 2026-10-16 元白板节点样式对齐与空白取消选择
+
+本轮共用 `scripts/measure-command.ps1` 运行以下测试、构建与 Obsidian CLI 探针。各行 `sampleCount=1`，峰值工作集 `0 B`、进程树 CPU `0 s`；这些短进程读数可能漏采，不能解释为零资源消耗。
+
+| Label | 结果 | ms |
+|---|---|---:|
+| `native-canvas-dom-scan` | 只读枚举 Life Panel 中各 Canvas leaf、节点数与可见节点几何 | 460.88 |
+| `native-canvas-node-structure` | 文件节点底层对象的 nodeEl 是未挂载占位；转查实际视图 DOM | 1130.17 |
+| `native-canvas-file-node-dom` | 失败：CLI eval 表达式括号错误；未改状态 | 413.55 |
+| `native-canvas-node-classes-dom` | 取得 Canvas node class 列表，输出截断 | 396.81 |
+| `native-canvas-active-node-types` | 确认 Canvas 数据对象的 file 类型；nodeEl 未挂载 | 452.52 |
+| `native-canvas-visible-dom-tree` | 只读 DOM 显示节点容器与内容层级，及独立 label 子节点 | 550.10 |
+| `native-canvas-node-dom-attributes` | 只读样式属性与节点类 | 526.16 |
+| `native-file-node-label-positions` | 被检查的文件节点不在视口、未虚拟渲染；没有推断其几何 | 453.30 |
+| `native-canvas-command-list` | Canvas 命令列表，无单独 fit 命令 | 424.19 |
+| `native-canvas-open-reference-new-tab` | 临时打开 `home.canvas` 新标签供 DOM 检查 | 491.68 |
+| `native-canvas-fit-reference` | 调用当前 CLI 上下文 Canvas 的 `zoomToFit`；主窗口截图仍在元白板 | 405.15 |
+| `native-canvas-file-node-screenshot` | 截图显示元白板主窗口，未将其误报为原生 Canvas | 586.14 |
+| `native-canvas-activate-reference-tab` | CLI 上下文切到 `home.canvas`；发现窗口上下文与截图窗口不同 | 413.06 |
+| `native-canvas-visible-reference-screenshot` | 主窗口仍显示元白板 | 471.11 |
+| `native-canvas-workspace-tabs` | 只读工作区树，发现主窗口与 floating window 均有 Canvas | 429.09 |
+| `native-canvas-window-map` | 区分主窗口与浮动窗口的 Canvas leaf | 560.85 |
+| `native-canvas-focus-main-window-tab` | 主窗口 leaf 状态切换成功，截图仍由另一窗口上下文提供 | 465.45 |
+| `native-canvas-main-file-node-screenshot` | 截图仍为元白板；未用于原生样式判断 | 601.43 |
+| `native-canvas-reveal-main-tab` | reveal/setActiveLeaf 调用成功 | 514.52 |
+| `native-canvas-after-reveal-screenshot` | 截图仍为元白板；继续以实际 DOM/CSS 规则为依据 | 534.25 |
+| `native-canvas-label-position` | 原生 `.canvas-node-label` 为 absolute | 1610.07 |
+| `native-canvas-label-transform` | 失败：该 CLI DevTools target 没有对应节点 | 1593.81 |
+| `native-canvas-node-container-radius` | 失败：该 CLI DevTools target 没有对应节点 | 1609.07 |
+| `native-canvas-node-container-border` | 失败：该 CLI DevTools target 没有对应节点 | 1594.81 |
+| `native-canvas-node-label-font` | 未命中独立字号规则，后续 computed style 得到 15px | 1593.81 |
+| `native-canvas-label-css` | 原生标签规则：上置 4px、向上平移、缩放跟随 Canvas zoom、单行省略 | 790.58 |
+| `native-canvas-label-dom` | 标签 DOM 为独立 `.canvas-node-label` | 882.47 |
+| `native-canvas-label-count` | 当前 DOM 有 28 个原生标签 | 880.46 |
+| `native-canvas-label-computed-geometry` | 样式：15px、muted 灰、absolute、top -4px；隐藏 leaf 无可用矩形 | 483.06 |
+| `native-canvas-container-selector-count` | `.canvas-node-container` 命中 226 个 | 469.31 |
+| `native-canvas-container-style` | 原生圆角变量为 `--radius-m` | 573.69 |
+| `native-canvas-container-css` | 原生容器：背景、单像素边框、圆角、轻阴影；主题边色弱化 | 1012.38 |
+| `meta-native-node-style-build` | 构建成功，main.js 287.2 kb | 2188.25 |
+| `meta-native-node-style-reload` | ARC 重载成功 | 437.27 |
+| `meta-native-node-style-open-view` | 元白板命令执行成功 | 438.50 |
+| `meta-native-node-style-screenshot` | 已检查元白板截图 | 455.65 |
+| `meta-native-card-body-border` | CLI 样式探针未找到当前元素 | 866.89 |
+| `meta-native-card-label-position` | 元白板标题规则为 absolute | 784.32 |
+| `meta-native-card-label-top` | CLI 样式探针未找到当前元素 | 865.89 |
+| `meta-native-card-outer-border` | DevTools 当前上下文无外框 border 规则命中 | 863.89 |
+| `meta-native-title-dom` | 标题作为独立 DOM 子节点，预览作为内容框 | 677.74 |
+| `meta-native-preview-dom` | 预览节点仍保留实际白板结构缩略图；输出截断 | 740.31 |
+| `meta-native-card-dom-count` | 27 张元白板卡片 | 562.54 |
+| `meta-native-node-style-tests` | 72/72 通过 | 1998.35 |
+| `meta-native-node-style-errors` | `No errors captured` | 861.50 |
+| `meta-native-node-style-dom-check` | 活动 view 为 `arc-meta-canvas`；标题、卡片、预览各 27 个 | 862.01 |
+| `native-canvas-close-inspection-tab` | 关闭本轮临时打开的 Canvas 检查标签 | 487.46 |
+| `meta-blank-deselect-tests` | 72/72 通过 | 2227.63 |
+| `meta-blank-deselect-build` | 构建成功，main.js 287.5 kb | 2575.52 |
+| `meta-blank-deselect-reload` | ARC 重载成功 | 1144.90 |
+| `meta-blank-deselect-runtime-probe` | 选择卡片后，空白 pointerdown 立即清选择并隐藏详情；后续 click 幂等 | 393.82 |
+| `meta-blank-deselect-errors` | `No errors captured` | 398.33 |
+
+ARC 构建产物已部署到 `life-panel` 插件目录，`main.js`、`manifest.json`、`styles.css` 的源文件与部署文件 SHA-256 一致。未修改原生 Canvas 文件，也未提交或发版。
+
+## 2026-10-16 元白板布局、节点形状与选择高亮
+
+本轮继续通过同一采样器运行测试、构建与 Obsidian CLI 探针。短 CLI 进程的 `0 B / 0 s` 读数可能漏采；探针只改动 ARC 插件配置与视图状态，测试后恢复分层布局、正方形卡片，并保留原有 1 个固定节点。未确认硬重置。
+
+| Label | 结果 | ms | 峰值工作集 | CPU | Samples |
+|---|---|---:|---:|---:|---:|
+| `meta-layout-force-tests-v3` | 74/74 通过 | 2104.48 | 0 B | 0 s | 1 |
+| `meta-layout-force-build-v2` | 构建通过，main.js 309.3 KB | 2132.17 | 0 B | 0 s | 1 |
+| `meta-layout-force-predeploy-state` | 失败：CLI eval 字符串转义错误；无状态改动 | 435.04 | 0 B | 0 s | 1 |
+| `meta-layout-force-predeploy-state-v2` | 读取成功：版本 0.5.2，元白板视图，1 个固定位置 | 442.01 | 0 B | 0 s | 1 |
+| `meta-layout-force-deploy-reload` | ARC 重载成功 | 2552.50 | 23.41 MiB | 0.047 s | 2 |
+| `meta-layout-force-runtime-initial` | 27 卡片、30 连边、默认分层/正方形、1 固定位置 | 1313.94 | 0 B | 0 s | 1 |
+| `meta-layout-force-runtime-modes` | 力导向无卡片重叠；固定位置与软重置保持；形状设置后恢复默认 | 1286.43 | 0 B | 0 s | 1 |
+| `meta-hover-click-highlight-probe` | 初探读到先前选中状态；后续独立清状态复测 | 542.94 | 0 B | 0 s | 1 |
+| `meta-hover-click-highlight-probe-v2` | hover/click 类与未选对象透明度探针通过 | 642.63 | 0 B | 0 s | 1 |
+| `meta-hover-click-css-cascade` | 检查插件样式规则与卡片状态级联 | 450.99 | 0 B | 0 s | 1 |
+| `meta-accent-token-check` | 检查当前主题强调色变量解析 | 537.21 | 0 B | 0 s | 1 |
+| `meta-layout-force-tests-v4` | 74/74 通过 | 2535.83 | 0 B | 0 s | 1 |
+| `meta-layout-force-build-v3` | 构建通过，main.js 309.3 KB | 2534.83 | 0 B | 0 s | 1 |
+| `meta-hover-click-highlight-reload` | ARC 重载成功 | 1112.05 | 0 B | 0 s | 1 |
+| `meta-settings-tab-inspection` | 确认设置对象与设置页容器可访问 | 429.48 | 0 B | 0 s | 1 |
+| `meta-settings-tab-registration` | ARC 设置页已注册 | 569.37 | 0 B | 0 s | 1 |
+| `meta-hover-click-and-settings-dom` | 设置项与下拉选项存在；局部高亮无全图变暗类 | 423.88 | 0 B | 0 s | 1 |
+| `meta-glow-token-support` | 检查强调色、阴影与 filter 的计算样式 | 679.01 | 0 B | 0 s | 1 |
+| `meta-hover-click-highlight-settled` | 悬浮/点击轮廓、连边宽度/不透明度及无暗化状态可区分 | 4244.77 | 23.46 MiB | 0.047 s | 4 |
+| `meta-layout-force-final-build` | 构建通过，main.js 309.3 KB | 1974.49 | 0 B | 0 s | 1 |
+| `meta-layout-force-final-reload` | ARC 重载成功 | 1055.69 | 0 B | 0 s | 1 |
+| `meta-layout-force-final-errors` | `No errors captured` | 625.22 | 0 B | 0 s | 1 |
+| `meta-layout-force-final-state` | 默认分层/正方形、1 固定位置、27 卡片与 30 连边 | 672.71 | 0 B | 0 s | 1 |
+| `meta-layout-force-final-highlight` | hover 1px、点击 3px；边 hover 2.4px、点击 3.1px；未选对象 opacity 1 | 4174.77 | 23.45 MiB | 0.047 s | 4 |
+| `meta-layout-force-final-glow-build` | 构建通过，main.js 309.3 KB | 1910.60 | 0 B | 0 s | 1 |
+| `meta-layout-force-final-glow-reload` | ARC 重载成功 | 2089.86 | 889.58 MiB | 10.797 s | 1 |
+| `meta-layout-force-final-glow-probe` | 动画进行中的计算样式采样；点击卡片轮廓已到 3px，未选对象不变暗 | 4126.87 | 23.46 MiB | 0.047 s | 4 |
+| `meta-layout-force-final-glow-errors` | `No errors captured` | 532.47 | 0 B | 0 s | 1 |
+| `meta-hover-click-static-targets` | 关闭过渡后核对目标值：卡片 hover 8px glow / click 16px；连边 hover 2.4px / click 3.1px | 1029.15 | 0 B | 0 s | 1 |
+
+最终源码 `main.js`、`manifest.json`、`styles.css` 已部署至 `life-panel`，三者 SHA-256 与构建源文件一致。未改动用户白板文件，未提交、推送或发版。状态探针在布局切换测试后确认已回到分层布局、正方形，并保留 1 个原固定节点。
+
+## 2026-10-16 `0.6.0-beta.0` 预发布门禁
+
+| Label | 结果 | ms | 峰值工作集 | CPU | Samples |
+|---|---|---:|---:|---:|---:|
+| `prerelease-0.6.0-beta.0-npm-ci` | 锁定依赖安装成功；npm 提示旧版依赖弃用及 esbuild install script allowlist 警告，后续构建仍通过 | 4431.06 | 150.34 MiB | 5.828 s | 3 |
+| `prerelease-0.6.0-beta.0-tests` | 74/74 通过 | 2218.12 | 0 B | 0 s | 1 |
+| `prerelease-0.6.0-beta.0-build` | 构建通过，main.js 309.3 KB | 2571.30 | 0 B | 0 s | 1 |
+| `prerelease-0.6.0-beta.0-obsidian-reload` | Life Panel 中 ARC 重载成功 | 1151.59 | 0 B | 0 s | 1 |
+| `prerelease-0.6.0-beta.0-runtime-version` | 运行版本 0.6.0-beta.0；元白板 27 卡片、默认分层/正方形、1 固定位置 | 603.15 | 0 B | 0 s | 1 |
+| `prerelease-0.6.0-beta.0-runtime-errors` | `No errors captured` | 683.23 | 0 B | 0 s | 1 |
+
+短测试与构建读数可能漏采；上述 CLI 进程也可能漏采资源。主线 CI 与 Release 工作流状态待推送后记录。

@@ -34,6 +34,19 @@ import type { DiagnosticReport } from './diagnostics';
 import { writeTextToClipboard } from './clipboard';
 import { diagnosticsBridgeFinalPhase, resolveDiagnosticsBridge } from './plugin-bridge';
 import type { DiagnosticsBridge, DiagnosticsBridgeRuntimeStatus } from './plugin-bridge';
+import { CanvasReferenceService } from './canvas-reference-service';
+import {
+	DEFAULT_META_CANVAS_LAYOUT_MODE,
+	DEFAULT_META_CANVAS_NODE_SHAPE,
+	normalizeMetaCanvasLayoutMode,
+	normalizeMetaCanvasNodeShapeMode,
+	type CanvasGraphPositionMap,
+	type MetaCanvasLayoutMode,
+	type MetaCanvasNodeShapeMode,
+} from './canvas-reference-layout';
+import { DEFAULT_CANVAS_REFERENCE_OPTIONS, normalizeCanvasReferenceOptions, type CanvasReferenceOccurrence, type CanvasReferenceOptions } from './canvas-reference-model';
+import { openCanvasReferencePicker } from './canvas-reference-picker';
+import { MetaCanvasView, META_CANVAS_VIEW_TYPE } from './meta-canvas-view';
 // import { CMD_selectAllEdgesInCanvas } from './commands/select-all-edges';
 // ! ✅「选择所有连边」的功能，在AdvancedCanvas中有了
 
@@ -53,6 +66,11 @@ export default class CanvasReferencePlugin extends Plugin {
 	private mouseWindowCleanups = new Map<Window, () => void>()
 
 	private _nodeRotation!: NodeRotationService
+	private canvasReferenceService!: CanvasReferenceService
+	private canvasReferenceOptions: CanvasReferenceOptions = { ...DEFAULT_CANVAS_REFERENCE_OPTIONS }
+	private metaCanvasPositions: CanvasGraphPositionMap = {}
+	private metaCanvasLayoutMode: MetaCanvasLayoutMode = DEFAULT_META_CANVAS_LAYOUT_MODE
+	private metaCanvasNodeShapeMode: MetaCanvasNodeShapeMode = DEFAULT_META_CANVAS_NODE_SHAPE
 
 	async onload(): Promise<void> {
 		const loadedData = await this.loadData() as unknown
@@ -63,7 +81,17 @@ export default class CanvasReferencePlugin extends Plugin {
 		this.rotationColor = normalizeRotationColor(this.persistedData.rotationColor)
 		this.colorSemantics = normalizeColorSemantics(this.persistedData.colorSemantics)
 		this.connectorCode = normalizeString(this.persistedData.connectorCode, "ControlLeft")
+		this.canvasReferenceOptions = normalizeCanvasReferenceOptions(this.persistedData.canvasReferenceOptions)
+		this.metaCanvasPositions = normalizeMetaCanvasPositions(this.persistedData.metaCanvasPositions)
+		this.metaCanvasLayoutMode = normalizeMetaCanvasLayoutMode(this.persistedData.metaCanvasLayoutMode)
+		this.metaCanvasNodeShapeMode = normalizeMetaCanvasNodeShapeMode(this.persistedData.metaCanvasNodeShapeMode)
 		this._nodeRotation = new NodeRotationService(this.app, () => ({ rotationColor: this.rotationColor }))
+		this.canvasReferenceService = new CanvasReferenceService(
+			this.app,
+			() => this.canvasReferenceOptions,
+			() => this.colorSemantics,
+		)
+		this.registerCanvasReferenceFeatures()
 		this.registerRotationCommands()
 		this.addSettingTab(new CanvasShortcutSettingTab(this.app, this))
 
@@ -96,6 +124,154 @@ export default class CanvasReferencePlugin extends Plugin {
 
 	getShortcutSettings(): CanvasShortcutSettings {
 		return this.settings
+	}
+
+	getCanvasReferenceOptions(): Readonly<CanvasReferenceOptions> {
+		return this.canvasReferenceOptions
+	}
+
+	getMetaCanvasPositions(): CanvasGraphPositionMap {
+		return { ...this.metaCanvasPositions }
+	}
+
+	getMetaCanvasLayoutMode(): MetaCanvasLayoutMode {
+		return this.metaCanvasLayoutMode
+	}
+
+	getMetaCanvasNodeShapeMode(): MetaCanvasNodeShapeMode {
+		return this.metaCanvasNodeShapeMode
+	}
+
+	/** Stable companion-plugin query; exact node IDs are resolved from Canvas JSON after index lookup. */
+	getIncomingCanvasReferences(targetCanvasPath: string): Promise<CanvasReferenceOccurrence[]> {
+		return this.canvasReferenceService.getIncomingCanvasReferences(targetCanvasPath)
+	}
+
+	async updateCanvasReferenceOption(key: keyof CanvasReferenceOptions, value: boolean): Promise<void> {
+		this.canvasReferenceOptions = { ...this.canvasReferenceOptions, [key]: value }
+		this.persistedData.canvasReferenceOptions = this.canvasReferenceOptions
+		await this.saveData(this.persistedData)
+		this.canvasReferenceService.invalidate()
+	}
+
+	async updateMetaCanvasPositions(positions: CanvasGraphPositionMap): Promise<void> {
+		this.metaCanvasPositions = normalizeMetaCanvasPositions(positions)
+		this.persistedData.metaCanvasPositions = this.metaCanvasPositions
+		await this.saveData(this.persistedData)
+	}
+
+	async updateMetaCanvasLayoutMode(mode: MetaCanvasLayoutMode): Promise<void> {
+		this.metaCanvasLayoutMode = normalizeMetaCanvasLayoutMode(mode)
+		this.persistedData.metaCanvasLayoutMode = this.metaCanvasLayoutMode
+		await this.saveData(this.persistedData)
+	}
+
+	async updateMetaCanvasNodeShapeMode(mode: MetaCanvasNodeShapeMode): Promise<void> {
+		this.metaCanvasNodeShapeMode = normalizeMetaCanvasNodeShapeMode(mode)
+		this.persistedData.metaCanvasNodeShapeMode = this.metaCanvasNodeShapeMode
+		await this.saveData(this.persistedData)
+	}
+
+	refreshMetaCanvasViews(): void {
+		for (const leaf of this.app.workspace.getLeavesOfType(META_CANVAS_VIEW_TYPE)) {
+			if (leaf.view instanceof MetaCanvasView) leaf.view.refreshLayoutOptions()
+		}
+	}
+
+	private registerCanvasReferenceFeatures(): void {
+		this.registerView(META_CANVAS_VIEW_TYPE, (leaf) => new MetaCanvasView(leaf, this.canvasReferenceService, {
+			getPositions: () => this.getMetaCanvasPositions(),
+			setPositions: (positions) => this.updateMetaCanvasPositions(positions),
+			getLayoutMode: () => this.getMetaCanvasLayoutMode(),
+			setLayoutMode: (mode) => this.updateMetaCanvasLayoutMode(mode),
+			getNodeShapeMode: () => this.getMetaCanvasNodeShapeMode(),
+			setNodeShapeMode: (mode) => this.updateMetaCanvasNodeShapeMode(mode),
+			focusNode: (path, nodeId, sourceLeaf) => this.focusNode(path, nodeId, false, sourceLeaf?.getContainer().win ?? null, sourceLeaf),
+		}))
+		this.addCommand({
+			id: "backtrack-canvas-reference",
+			name: "回溯引用当前白板的入口",
+			checkCallback: (checking) => {
+				const canvasPath = this.getActiveCanvasPath()
+				if (!canvasPath) return false
+				if (!checking) void this.backtrackCanvasReferences(canvasPath)
+				return true
+			},
+		})
+		this.addCommand({
+			id: "open-meta-canvas",
+			name: "打开元白板",
+			callback: () => { void this.openMetaCanvas() },
+		})
+		this.registerEvent(this.app.vault.on("create", (file) => {
+			if (isCanvasVaultFile(file)) this.canvasReferenceService.invalidate(file.path)
+		}))
+		this.registerEvent(this.app.vault.on("modify", (file) => {
+			if (isCanvasVaultFile(file)) this.canvasReferenceService.invalidate(file.path)
+		}))
+		this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
+			const oldCanvas = oldPath.toLowerCase().endsWith(".canvas")
+			const newCanvas = isCanvasVaultFile(file)
+			if (oldCanvas && this.metaCanvasPositions[oldPath]) {
+				this.metaCanvasPositions[file.path] = this.metaCanvasPositions[oldPath]
+				delete this.metaCanvasPositions[oldPath]
+				this.persistedData.metaCanvasPositions = this.metaCanvasPositions
+				void this.saveData(this.persistedData)
+			}
+			if (oldCanvas || newCanvas) this.canvasReferenceService.invalidate()
+		}))
+		this.registerEvent(this.app.vault.on("delete", (file) => {
+			if (isCanvasVaultFile(file) && this.metaCanvasPositions[file.path]) {
+				delete this.metaCanvasPositions[file.path]
+				this.persistedData.metaCanvasPositions = this.metaCanvasPositions
+				void this.saveData(this.persistedData)
+			}
+			if (isCanvasVaultFile(file)) this.canvasReferenceService.invalidate()
+		}))
+		this.registerEvent(this.app.metadataCache.on("resolved", () => this.canvasReferenceService.invalidate()))
+	}
+
+	private getActiveCanvasPath(): string | undefined {
+		const view = this.app.workspace.activeLeaf?.view as { getViewType?: () => string; file?: { path?: string } } | undefined
+		return view?.getViewType?.() === "canvas" ? view.file?.path : undefined
+	}
+
+	private async backtrackCanvasReferences(canvasPath: string): Promise<void> {
+		const sourceLeaf = this.app.workspace.activeLeaf ?? undefined
+		try {
+			const occurrences = await this.getIncomingCanvasReferences(canvasPath)
+			openCanvasReferencePicker(this.app, occurrences, (sourcePath, nodeId) =>
+				this.focusNode(sourcePath, nodeId, false, sourceLeaf?.getContainer().win ?? null, sourceLeaf))
+		} catch (error) {
+			new Notice(`读取白板入口失败：${error instanceof Error ? error.message : String(error)}`)
+		}
+	}
+
+	private async openMetaCanvas(): Promise<void> {
+		const existing = this.app.workspace.getLeavesOfType(META_CANVAS_VIEW_TYPE)[0]
+		if (existing) {
+			const container = (existing as unknown as { containerEl?: HTMLElement }).containerEl
+			const rightContainer = (this.app.workspace.rightSplit as unknown as { containerEl?: HTMLElement }).containerEl
+			const leftContainer = (this.app.workspace.leftSplit as unknown as { containerEl?: HTMLElement }).containerEl
+			const isInDock = !container
+				|| Boolean(rightContainer?.contains(container) || leftContainer?.contains(container))
+			if (!isInDock) {
+				await this.app.workspace.revealLeaf(existing)
+				this.app.workspace.setActiveLeaf(existing, { focus: true })
+				existing.getContainer().win.focus()
+				return
+			}
+			this.app.workspace.detachLeavesOfType(META_CANVAS_VIEW_TYPE)
+		}
+		const leaf = this.app.workspace.getLeaf("tab")
+		if (!leaf) {
+			new Notice("无法打开元白板视图。")
+			return
+		}
+		await leaf.setViewState({ type: META_CANVAS_VIEW_TYPE, active: true })
+		this.app.workspace.revealLeaf(leaf)
+		this.app.workspace.setActiveLeaf(leaf, { focus: true })
+		leaf.getContainer().win.focus()
 	}
 
 	async updateShortcut(id: CanvasShortcutSettingKey, code: string, index = 0): Promise<void> {
@@ -140,8 +316,8 @@ export default class CanvasReferencePlugin extends Plugin {
 	 * preferOtherWindow：从仪表盘等锚定窗口跳转时，优先用其他窗口打开/聚焦；
 	 * sourceWindowArg 由调用方显式传入「源窗口」（仪表盘所在窗口）。
 	 */
-	focusNode(canvasPath: string, nodeId: string, preferOtherWindow = false, sourceWindowArg?: Window | null): Promise<boolean> {
-		return openCanvasAndFocusNode(this.app, canvasPath, nodeId, preferOtherWindow, sourceWindowArg)
+	focusNode(canvasPath: string, nodeId: string, preferOtherWindow = false, sourceWindowArg?: Window | null, replaceLeaf?: WorkspaceLeaf): Promise<boolean> {
+		return openCanvasAndFocusNode(this.app, canvasPath, nodeId, preferOtherWindow, sourceWindowArg, replaceLeaf)
 	}
 
 	async updateRotationColor(color: RotationColorCondition): Promise<void> {
@@ -777,4 +953,21 @@ function normalizeRotationColor(value: unknown): RotationColorCondition {
 
 function normalizeString(value: unknown, fallback: string): string {
 	return typeof value === "string" && value.trim() ? value.trim() : fallback
+}
+
+function normalizeMetaCanvasPositions(value: unknown): CanvasGraphPositionMap {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return {}
+	const result: CanvasGraphPositionMap = {}
+	for (const [path, point] of Object.entries(value as Record<string, unknown>)) {
+		if (!point || typeof point !== "object" || Array.isArray(point)) continue
+		const candidate = point as { x?: unknown; y?: unknown }
+		if (typeof candidate.x !== "number" || !Number.isFinite(candidate.x)) continue
+		if (typeof candidate.y !== "number" || !Number.isFinite(candidate.y)) continue
+		result[path] = { x: candidate.x, y: candidate.y }
+	}
+	return result
+}
+
+function isCanvasVaultFile(file: unknown): file is TFile {
+	return file instanceof TFile && file.extension.toLowerCase() === "canvas"
 }

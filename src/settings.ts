@@ -9,6 +9,7 @@ import {
 import type { CanvasShortcutFamilySettingKey, CanvasShortcutSettingKey } from "./canvas-shortcuts"
 import type { RotationColorCondition } from "./rotation-model"
 import type { TaskSemanticId } from "./color-semantics"
+import type { MetaCanvasLayoutMode, MetaCanvasNodeShapeMode } from "./canvas-reference-layout"
 
 const TASK_SEMANTIC_OPTIONS: ReadonlyArray<{ value: TaskSemanticId; label: string }> = [
 	{ value: "blocked", label: "受阻/取消" },
@@ -62,6 +63,52 @@ export class CanvasShortcutSettingTab extends PluginSettingTab {
 			text: "按键只在当前事件所属的白板窗口生效；输入框、节点编辑、命令面板和带修饰键的无关操作不会触发白板快捷键。所有配置保存物理按键码，主窗口与独立窗口共用同一套设置。",
 			cls: "setting-item-description",
 		})
+
+		containerEl.createEl("h3", { text: "元白板" })
+		containerEl.createEl("p", {
+			text: "选择全局关系图的自动布局和白板卡片形状。画布中也可通过布局菜单快速切换。",
+			cls: "setting-item-description",
+		})
+		new Setting(containerEl)
+			.setName("自动布局")
+			.setDesc("分层布局适合按方向阅读；力导向布局适合查看复杂关系。手动移动的节点在两种模式下都会保持固定。")
+			.addDropdown((dropdown) => dropdown
+				.addOption("layered", "分层布局 · Dagre")
+				.addOption("force", "力导向布局")
+				.setValue(this.plugin.getMetaCanvasLayoutMode())
+				.onChange(async (value) => {
+					await this.plugin.updateMetaCanvasLayoutMode(value as MetaCanvasLayoutMode)
+					this.plugin.refreshMetaCanvasViews()
+				}))
+		new Setting(containerEl)
+			.setName("白板卡片形状")
+			.setDesc("默认使用正方形；也可按白板内容的宽高比调整卡片预览。")
+			.addDropdown((dropdown) => dropdown
+				.addOption("square", "正方形")
+				.addOption("canvas-aspect", "适配白板宽高比")
+				.setValue(this.plugin.getMetaCanvasNodeShapeMode())
+				.onChange(async (value) => {
+					await this.plugin.updateMetaCanvasNodeShapeMode(value as MetaCanvasNodeShapeMode)
+					this.plugin.refreshMetaCanvasViews()
+				}))
+
+		containerEl.createEl("h3", { text: "白板引用" })
+		containerEl.createEl("p", {
+			text: "控制入口回溯与元白板中的关系来源。白板文件节点默认开启；文本节点中的内部链接可按需加入。",
+			cls: "setting-item-description",
+		})
+		new Setting(containerEl)
+			.setName("白板文件节点")
+			.setDesc("将指向其他白板的文件节点纳入引用关系。")
+			.addToggle((toggle) => toggle
+				.setValue(this.plugin.getCanvasReferenceOptions().includeFileNodes)
+				.onChange(async (value) => this.plugin.updateCanvasReferenceOption("includeFileNodes", value)))
+		new Setting(containerEl)
+			.setName("白板文本节点内链")
+			.setDesc("纳入 Wikilink、Markdown 内链与嵌入链接；默认关闭。")
+			.addToggle((toggle) => toggle
+				.setValue(this.plugin.getCanvasReferenceOptions().includeTextLinks)
+				.onChange(async (value) => this.plugin.updateCanvasReferenceOption("includeTextLinks", value)))
 
 		containerEl.createEl("h3", { text: "单键快捷键" })
 		for (const definition of CONFIGURABLE_CANVAS_SHORTCUTS) {
