@@ -2,7 +2,9 @@ import { normalizePath, TFile, type App } from "obsidian";
 import {
 	buildCanvasReferenceGraph,
 	collectCanvasReferenceOccurrences,
+	collectCanvasForwardLinks,
 	parseCanvasSnapshot,
+	extractCanvasTextLinks,
 	type CanvasReferenceOccurrence,
 	type CanvasReferenceOptions,
 	type CanvasSnapshot,
@@ -37,30 +39,66 @@ export class CanvasReferenceService {
 	) {}
 
 	async getIncomingCanvasReferences(targetCanvasPath: string): Promise<CanvasReferenceOccurrence[]> {
-	const target = normalizeVaultPath(targetCanvasPath);
-	const indexedSources = this.findIndexedSourcePaths(target);
-	let sources = [...indexedSources];
-	// MetadataCache normally indexes Canvas links. If it has no candidate yet, scan Canvas files once
-	// for this request so an unresolved/early index cannot turn a real reference into a false empty state.
-	if (sources.length === 0) sources = this.listCanvasFiles().map((file) => file.path);
+		const target = normalizeVaultPath(targetCanvasPath);
+		const indexedSources = this.findIndexedSourcePaths(target);
+		let sources = [...indexedSources];
+		if (sources.length === 0) sources = this.listCanvasFiles().map((file) => file.path);
 
-	const options = this.getOptions();
-	const occurrences: CanvasReferenceOccurrence[] = [];
-	for (const sourcePath of sources) {
-		if (sourcePath === target) continue;
-		const snapshot = await this.readSnapshot(sourcePath);
-		if (!snapshot) continue;
-		occurrences.push(...collectCanvasReferenceOccurrences(
-			snapshot,
-			(linkpath, origin) => this.resolveCanvasPath(linkpath, origin),
-			options,
-		).filter((entry) => normalizeVaultPath(entry.targetCanvasPath) === target));
+		const options = this.getOptions();
+		const occurrences: CanvasReferenceOccurrence[] = [];
+		for (const sourcePath of sources) {
+			if (sourcePath === target) continue;
+			const snapshot = await this.readSnapshot(sourcePath);
+			if (!snapshot) continue;
+			occurrences.push(...collectCanvasReferenceOccurrences(
+				snapshot,
+				(linkpath, origin) => this.resolveCanvasPath(linkpath, origin),
+				options,
+			).filter((entry) => normalizeVaultPath(entry.targetCanvasPath) === target));
+		}
+		return occurrences.sort((left, right) =>
+			left.sourceCanvasPath.localeCompare(right.sourceCanvasPath, "zh-CN")
+			|| left.y - right.y
+			|| left.x - right.x
+			|| left.sourceNodeId.localeCompare(right.sourceNodeId));
 	}
-	return occurrences.sort((left, right) =>
-		left.sourceCanvasPath.localeCompare(right.sourceCanvasPath, "zh-CN")
-		|| left.y - right.y
-		|| left.x - right.x
-		|| left.sourceNodeId.localeCompare(right.sourceNodeId));
+
+	async getIncomingCanvasReferencesFrom(targetCanvasPath: string, sourceCanvasPath: string): Promise<CanvasReferenceOccurrence[]> {
+		const source = normalizeVaultPath(sourceCanvasPath);
+		return (await this.getIncomingCanvasReferences(targetCanvasPath)).filter((entry) =>
+			normalizeVaultPath(entry.sourceCanvasPath) === source);
+	}
+
+	async getBackReferencesInCanvas(targetCanvasPath: string, sourceCanvasPath: string): Promise<CanvasReferenceOccurrence[]> {
+		const source = normalizeVaultPath(sourceCanvasPath);
+		return (await this.getOutgoingCanvasReferences(targetCanvasPath)).filter((entry) =>
+			normalizeVaultPath(entry.targetCanvasPath) === source);
+	}
+
+	async getOutgoingCanvasReferences(sourceCanvasPath: string): Promise<CanvasReferenceOccurrence[]> {
+		const snapshot = await this.readSnapshot(normalizeVaultPath(sourceCanvasPath));
+		if (!snapshot) return [];
+		return collectCanvasReferenceOccurrences(snapshot,
+			(linkpath, origin) => this.resolveCanvasPath(linkpath, origin), this.getOptions());
+	}
+
+	async getCanvasLinksFromNote(notePath: string): Promise<string[]> {
+		const file = this.app.vault.getAbstractFileByPath(normalizePath(notePath));
+		if (!(file instanceof TFile) || file.extension.toLowerCase() !== "md") return [];
+		const links = extractCanvasTextLinks(await this.app.vault.cachedRead(file));
+		return [...new Set(links.map((link) => this.resolveCanvasPath(link.linkpath, file.path))
+			.filter((path): path is string => Boolean(path)))];
+	}
+
+	async getForwardCanvasTargets(sourcePath: string, selectedNodes?: readonly unknown[]): Promise<string[]> {
+		if (selectedNodes === undefined) {
+			return [...new Set((await this.getOutgoingCanvasReferences(sourcePath)).map((entry) => entry.targetCanvasPath))];
+		}
+		const scope = collectCanvasForwardLinks(selectedNodes);
+		const targets = scope.links.map((link) => this.resolveCanvasPath(link, sourcePath))
+			.filter((path): path is string => Boolean(path));
+		for (const note of scope.notes) targets.push(...await this.getCanvasLinksFromNote(note));
+		return [...new Set(targets)];
 	}
 
 	async getGraph(): Promise<CanvasReferenceGraph> {

@@ -362,3 +362,139 @@ ARC 构建产物已部署到 `life-panel` 插件目录，`main.js`、`manifest.j
 - `main` 提交 `80ba1fcaac607f275ee1d00711aed66403754a7a` 的 CI run `38899741543`：测试与构建通过。
 - `v0.6.0-beta.0` Release run `38899965300`：标签检出、`npm ci`、测试、构建、zip 打包和上传均通过。
 - GitHub Release 已标记为 prerelease，包含版本 zip、`main.js`、`manifest.json` 与 `styles.css`。
+
+## 2026-10-17 前进/回溯导航与元白板收尾验证
+
+以下命令均通过 `scripts/measure-command.ps1` 采样；短 CLI 进程的资源峰值可能漏采。`life-panel` 运行态中已有的第三方错误按栈帧归因，不计入 ARC 插件错误。
+
+| Label | 结果 | 墙钟 ms | 峰值工作集 | CPU | Samples |
+|---|---|---:|---:|---:|---:|
+| `reference-navigation-final-tests` | 75/75 通过 | 1653.08 | 225.02 MiB | 1.547 s | 2 |
+| `reference-navigation-final-build` | 构建通过，`main.js` 319.8 KB | 2098.97 | 235.64 MiB | 1.797 s | 2 |
+| `life-panel-reference-navigation-reload` | 插件重载成功 | 507.90 | 4.77 MiB | 0 s | 1 |
+| `life-panel-reference-navigation-runtime-state` | 运行版本 `0.6.0-beta.0`；快捷键含 `backtrackReference`/`forwardReference` | 339.62 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `life-panel-reference-navigation-plugin-dom` | 元白板运行态 27 卡片、30 连边 | 595.10 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `reference-navigation-postfix-tests` | 75/75 通过 | 1991.70 | 244.25 MiB | 2.203 s | 2 |
+| `reference-navigation-postfix-build` | 构建通过，`main.js` 319.8 KB | 1960.73 | 244.21 MiB | 2.109 s | 2 |
+| `life-panel-reference-navigation-aria-final-dom` | 重建元白板后标题“全局引用”、ARIA“全局引用”；27 卡片、30 连边 | 367.97 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `reference-navigation-picker-action-tests` | 75/75 通过 | 1735.86 | 225.48 MiB | 1.562 s | 2 |
+| `reference-navigation-picker-action-build` | 构建通过，`main.js` 320.1 KB | 1704.31 | 214.28 MiB | 1.500 s | 2 |
+| `life-panel-reference-navigation-alt-down-e2e-final` | 真实前进选择器显示 `Alt+↓`；目标选择后活动白板切换为“项目：灵眸” | 2924.38 | 23.59 MiB | 0.047 s | 6 |
+| `life-panel-picker-lifecycle-build` | 构建通过，`main.js` 320.2 KB | 2120.82 | 5.39 MiB | 0.078 s | 1 |
+| `life-panel-clean-runtime-errors` | 重启后 `No errors captured` | 575.03 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `life-panel-clean-meta-canvas-e2e` | 干净运行态标题“全局引用”、27 卡片、30 连边、ARIA 正确 | 2295.02 | 23.57 MiB | 0.047 s | 2 |
+| `life-panel-clean-forward-command-picker-dom` | `home.canvas` 活动；前进选择器 14 项，提示“Alt+↓直接选第一项” | 468.46 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `life-panel-clean-forward-picker-click` | 点击第一项后切换至“项目：灵眸”，源/独立窗口 Modal 均为 0 | 4200.57 | 23.63 MiB | 0.062 s | 2 |
+| `life-panel-forward-reciprocal-e2e` | 软件迭代白板 → 阿里云白板；目标自动选中回指源白板节点 `d279001afd491094` | 3096.26 | 23.58 MiB | 0.047 s | 2 |
+| `life-panel-reciprocal-forward-errors` | `No errors captured` | 667.45 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `reference-navigation-final-build-after-resource-log` | 最终构建通过，`main.js` 320.2 KB | 2555.96 | 0 B（短进程，可能漏采） | 0.078 s | 1 |
+| `life-panel-final-deploy-reload` | 最终构建产物复制并重载成功 | 2281.85 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `life-panel-final-deploy-errors` | 重载后 `No errors captured` | 1208.58 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `life-panel-alt-down-cdp-dispatch` | Obsidian CDP 真实 `Input.dispatchKeyEvent` Alt+↓ 返回成功 | 1897.10 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `life-panel-alt-down-cdp-result` | 真实 Alt+↓ 后活动白板切换到“项目：灵眸”，两窗口 Modal 均为 0 | 1864.16 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `life-panel-alt-down-cdp-final-errors` | 真实 Alt+↓ 后 `No errors captured` | 1720.39 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `life-panel-alt-up-cdp-dispatch` | Obsidian CDP `Input.dispatchKeyEvent` Alt+↑ 返回成功；该次 CDP 事件未直接完成 Modal 选择 | 1514.73 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `life-panel-alt-up-keymap-direct-route` | 通过 Obsidian `app.keymap.onKeyEvent` 实际路由 Alt+↑，事件被消费 | 1786.33 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `life-panel-alt-up-selection-result` | keymap 实际路由后回到 `home.canvas`，选中回指“项目：灵眸”的节点 `7e9e30ca443be634` | 2959.59 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `life-panel-alt-up-final-errors` | Alt+↑ keymap 路由后 `No errors captured` | 1937.47 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `life-panel-final-plugin-status` | ARC `0.6.0-beta.0`，enabled=true | 1596.43 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `life-panel-final-factual-cli-status` | ARC `0.6.0-beta.0`，enabled=true | 3626.50 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `life-panel-final-factual-cli-commands` | 前进、回溯、元白板命令均注册 | 1522.19 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `life-panel-final-factual-cli-errors` | `No errors captured` | 1238.84 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `life-panel-evidence-alt-down-keymap-route` | 前进选择器真实存在（14 项、首项“项目：灵眸”）；Obsidian keymap 路由 Alt+↓，`keyEventConsumed=true` | 1749.32 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `life-panel-evidence-alt-down-final-state` | 活动白板切换至“项目：灵眸”，两个窗口 Modal 均为 0 | 3177.94 | 17.20 MiB | 0.047 s | 1 |
+| `life-panel-evidence-alt-up-keymap-route` | 回溯选择器真实存在（2 个来源）；Obsidian keymap 路由 Alt+↑，`keyEventConsumed=true` | 2147.45 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+| `life-panel-evidence-alt-up-final-state` | 活动白板回到 `home.canvas`，选中回指节点 `7e9e30ca443be634`，两个窗口 Modal 均为 0 | 4139.00 | 4.80 MiB | 0.016 s | 1 |
+| `life-panel-evidence-final-errors` | 仅有既有 Obsidian host `ResizeObserver` warning，无 ARC 栈帧 | 1897.92 | 0 B（短 CLI，可能漏采） | 0 s | 1 |
+
+最终 `main.js` 已复制到 `life-panel`，与源码构建产物 SHA-256 一致；未修改用户白板内容，未提交、推送或发版。
+
+
+## 2026-10-18 Claude Code 接管复核、0.6.1 前进与最近跳转
+
+从 Claude Code 会话 `a72f4075-0e32-42c1-ac75-4b55caf3c72c` 逆推交接；源码仍以 `3ee2c24` 为提交基线，继承原有未提交工作。独立验证后补齐文本/多选前进范围、来源与入口独立的最近记录、可配置选择器按键，以及隐藏窗口的有界聚焦。版本文件与 Life Panel 安装版本为 `0.6.1`，本轮未提交、推送或发版。
+
+所有下表命令均使用 `scripts/measure-command.ps1`。`0 MiB / 0 s` 与单次短采样可能漏采，不能解释为零资源。失败探针、错误预期与后续有效证据一并保留。
+
+| Label | 结果 | ms | 峰值工作集 | CPU | Samples |
+|---|---|---:|---:|---:|---:|
+| `handoff-0.6.1-independent-tests` | 接管基线 75/75 通过 | 3692.75 | 0 MiB | 0 s | 1 |
+| `handoff-0.6.1-independent-build` | TypeScript/生产构建通过 | 3559.09 | 0 MiB | 0 s | 1 |
+| `reference-recency-build-check` | TypeScript 检查失败，已修正后重跑 | 1407.66 | 75.32 MiB | 0.25 s | 1 |
+| `reference-recency-tests-v1` | 第一轮排序 77/77 通过 | 2081.08 | 0 MiB | 0 s | 1 |
+| `reference-recency-build-v1` | TypeScript/生产构建通过 | 2056.15 | 5.36 MiB | 0.047 s | 1 |
+| `navigation-recency-final-tests` | 排序与选择范围 79/79 通过 | 2412.65 | 0 MiB | 0 s | 1 |
+| `navigation-recency-final-build` | TypeScript 检查失败，已修正后重跑 | 2412.65 | 0 MiB | 0 s | 1 |
+| `navigation-recency-build-v2` | TypeScript/生产构建通过 | 1941.65 | 17.82 MiB | 0.078 s | 1 |
+| `navigation-recency-cli-reload` | Life Panel 中 ARC 重载成功 | 1166.83 | 0 MiB | 0 s | 1 |
+| `navigation-recency-bounded-focus-tests` | TypeScript 检查失败，已修正后重跑 | 2364.22 | 0 MiB | 0 s | 1 |
+| `navigation-recency-bounded-focus-build` | TypeScript 检查失败，已修正后重跑 | 2281.97 | 0 MiB | 0 s | 1 |
+| `navigation-recency-bounded-focus-tests-v2` | 有界聚焦修复后 81/81 通过 | 2686.25 | 0 MiB | 0 s | 1 |
+| `navigation-recency-bounded-focus-build-v2` | TypeScript/生产构建通过 | 2611.25 | 0 MiB | 0 s | 1 |
+| `navigation-recency-bounded-focus-reload` | Life Panel 中 ARC 重载成功 | 522.26 | 0 MiB | 0 s | 1 |
+| `navigation-recency-persistence-reload` | Life Panel 中 ARC 重载成功 | 399.55 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-tests` | 82/82 通过 | 2341.93 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-build` | TypeScript/生产构建通过 | 2266.91 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-reload` | Life Panel 中 ARC 重载成功 | 371.36 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-final-tests` | 82/82 通过 | 2247.07 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-final-build` | TypeScript/生产构建通过 | 2247.07 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-final-reload` | Life Panel 中 ARC 重载成功 | 911.97 | 4.77 MiB | 0 s | 1 |
+| `navigation-0.6.1-frame-contract-tests` | 82/82 通过 | 2128.13 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-frame-contract-build` | TypeScript/生产构建通过 | 2054.52 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-frame-contract-reload` | Life Panel 中 ARC 重载成功 | 498.89 | 0 MiB | 0 s | 1 |
+| `navigation-recency-runtime-snapshot` | 版本 0.6.1；主/副窗口无初始 Modal；历史为空 | 379.73 | 0 MiB | 0 s | 1 |
+| `navigation-recency-main-setup` | 建立主窗口临时标签；home 225 节点、14 个文件节点目标 | 1294.92 | 0 MiB | 0 s | 1 |
+| `navigation-recency-forward-open` | 前进选择器 14 候选，保持无历史时原有顺序 | 398.20 | 0 MiB | 0 s | 1 |
+| `navigation-recency-choose-nonfirst-target` | 实际选择原第 3 项；同一 leaf 打开目标并记录时间 | 1057.22 | 4.8 MiB | 0 s | 1 |
+| `navigation-recency-forward-order-after-visit` | 探针错误：原生选择器没有 close 按钮；后改用 Esc | 451.63 | 0 MiB | 0 s | 1 |
+| `navigation-recency-forward-order-and-cancel` | 刚访问目标置顶；Esc 取消不改变历史 | 366.78 | 0 MiB | 0 s | 1 |
+| `navigation-recency-coverage-scan` | 发现多来源/重复入口、真实文本内链和嵌入笔记样本 | 436.15 | 0 MiB | 0 s | 1 |
+| `navigation-recency-second-visit` | 第二次真实访问记录更新，Modal 清零 | 1131.58 | 0 MiB | 0 s | 1 |
+| `navigation-recency-descending-order` | 最近目标第一、较早目标第二，其余保持原序 | 499.87 | 0 MiB | 0 s | 1 |
+| `navigation-recency-source-selection` | 发现问题：选中节点但旧聚焦等待未结束，未写历史 | 1811.40 | 23.46 MiB | 0.047 s | 2 |
+| `navigation-recency-entry-selection` | 复现同一聚焦等待问题，不能视为排序通过 | 1914.88 | 23.48 MiB | 0.047 s | 2 |
+| `navigation-recency-source-entry-reordered` | 失败：旧聚焦未完成导致来源/入口未置顶，后已修复 | 3454.18 | 23.45 MiB | 0.062 s | 4 |
+| `navigation-recency-history-diagnosis` | 确认只存在前进记录；定位成功回调未完成 | 373.30 | 0 MiB | 0 s | 1 |
+| `navigation-recency-discard-stalled-probe` | 关闭旧测试标签，隔离已卸载测试实例的延迟记录 | 571.74 | 0 MiB | 0 s | 1 |
+| `navigation-recency-new-main-test-tab` | 修复构建加载成功，建立新临时主窗口标签 | 1254.30 | 0 MiB | 0 s | 1 |
+| `navigation-recency-source-success-v2` | 来源跳转成功后写入具体节点时间，Modal 清零 | 3525.21 | 23.4 MiB | 0.047 s | 4 |
+| `navigation-recency-entry-success-and-order-v2` | 最近来源与同板入口均置顶；取消不写历史 | 5209.81 | 23.48 MiB | 0.047 s | 6 |
+| `navigation-recency-selected-text-and-note` | 真实文本节点、嵌入 Markdown 笔记均前进到正确目标 | 530.04 | 0 MiB | 0 s | 1 |
+| `navigation-recency-multiselection-scope` | 两选中节点只给出两个相关目标 | 836.98 | 0 MiB | 0 s | 1 |
+| `navigation-recency-persisted-evidence` | 8 条内存记录与插件 data.json 读取结果一致 | 499.18 | 0 MiB | 0 s | 1 |
+| `navigation-recency-reload-and-alt-down` | 历史重载一致；探针预期沿用旧目标，实际最新目标已变，后修正断言 | 6163.98 | 23.41 MiB | 0.047 s | 6 |
+| `navigation-recency-post-probe-state` | 确认前一探针进程已退出，读取实际导航及历史状态 | 428.59 | 0 MiB | 0 s | 1 |
+| `navigation-recency-keyboard-forward-confirmed` | Alt+↓ 选择最新目标，同一 leaf 导航，Modal 清零 | 966.95 | 0 MiB | 0 s | 1 |
+| `navigation-recency-keyboard-back-confirmed` | 键盘两阶段返回正确节点；发现隐藏窗口视口仍未提交 | 5609.08 | 23.48 MiB | 0.062 s | 6 |
+| `navigation-focus-runtime-contract` | 核实原生 panTo/setViewport/requestFrame；主窗口 document.hidden=true | 459.61 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-main-keyboard-loop` | 主窗口实际往返、最近项与入口正确；节点/视口中心误差 0 | 939.59 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-popout-setup` | 在已有独立窗口创建临时标签 | 915.44 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-popout-keyboard-loop` | 独立窗口往返；导航调用恰好 2 次；主窗口不变；中心误差 0 | 896.07 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-negative-contexts` | 插件动作调用为 0；宿主也可能消费事件，defaultPrevented 不作为动作判据 | 320.73 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-custom-shortcut-and-failure` | Alt+J 提示/选择有效、旧键不跳；失败不记历史；配置已恢复 | 895.95 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-meta-ui-and-lifecycle` | 全局引用 27 卡/30 边、横移/动画取消通过；候选即时读取过早，后补等待重测 | 822.30 | 0 MiB | 0 s | 1 |
+| `navigation-meta-modal-window-diagnosis` | 主副窗口均无残留 Modal；候选读取需等待原生异步绘制 | 324.56 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-meta-picker-confirmed` | 元白板来源/入口最近项正确，Modal 属于本窗口并关闭 | 393.87 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-stale-query-guards` | 前进/回溯查询过期不弹窗、不改历史 | 895.03 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-guard-actions-confirmed` | 输入/外部 DOM/修饰键/重复/组合输入无导航，无状态变化 | 294.07 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-final-runtime-and-cleanup` | 版本/命令有效；历史、快捷键恢复；测试标签关闭；每窗口一组键监听 | 587.73 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-final-focus-persistence-smoke` | 最终构建：正确节点、中心误差 0、历史成功落盘，测试状态已恢复 | 743.79 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-final-errors` | 无 ARC 栈帧；宿主 ResizeObserver 与 Quiet Outline 两条异常 | 334.94 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-owner-tests` | 83/83 通过，包含 leaf 关闭时取消聚焦的回归 | 2241.65 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-owner-build` | TypeScript/生产构建通过 | 2201.65 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-owner-reload` | Life Panel 重载成功 | 702.30 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-owner-final-smoke` | 最终版本正确聚焦、居中、落盘；关闭 leaf 的过期查询被忽略，测试状态恢复 | 711.70 | 0 MiB | 0 s | 1 |
+| `navigation-0.6.1-owner-final-errors` | 无 ARC 错误；仍为宿主与 Quiet Outline 的既有错误 | 298.41 | 0 MiB | 0 s | 1 |
+
+`navigation-recency-alt-up-two-stage-loop` 的首次观察超过工具返回窗口，探针包装器当时未保留统一 exec handle，未取得该次 sampler 的最终数值。之后通过进程清单确认它已退出，并使用 `navigation-recency-keyboard-back-confirmed`、`navigation-0.6.1-main-keyboard-loop`、`navigation-0.6.1-popout-keyboard-loop` 重测；缺失数值不补造。包装器已改为继续等待同一 session handle。
+
+验收结论：
+
+- 前进目标、回溯来源、同板入口按最近成功时间置顶；取消与失败不写入，插件重载后读取与已保存记录一致。
+- 主窗口和独立窗口均完成 Alt+↓ / Alt+↑ 往返，替换原标签，正确节点与视口中心误差为 0；各窗口没有重复调用或残留 Modal。
+- 文本节点、嵌入笔记、多选限定范围、Alt+J 改绑、输入上下文和过期查询均有实际动作/状态证据。
+- 元白板保持“全局引用”、27 卡片、30 关系；单击边只选中，双击进入入口选择，最近记录可复用，横向滚动与缩放动画清理有效。
+- 原生 Canvas 的 `requestFrame` 参数是时间戳而非回调；适配已改为无参请求渲染，用目标 Window 帧与 50ms 计时器竞速，避免旧 API 假设破坏视口动画。
+- 最终 83/83 测试与构建通过；`main.js`、`manifest.json`、`styles.css` 源/部署哈希一致。CLI 试验前后 27 张用户 Canvas 文件 SHA-256 全部相同。
+- 已恢复测试前导航历史、快捷键与活动页面，移除测试标签/DOM/运行态补丁；未启用移动仿真或 Android 模拟器。
+- 最终 `dev:errors` 存在宿主 `ResizeObserver` 警告，以及 `plugin:obsidian-quiet-outline` 的 `getHeaders` 两条异常；没有 ARC 栈帧，不将其报告为全局无错误。

@@ -37,6 +37,9 @@ export interface CanvasShortcutSettings {
 	splitList: string
 	/** 白板内轮换聚焦（当前白板）：单按前进、Shift 后退。 */
 	rotationNext: string
+	/** Alt+Up/Down reference navigation; the modifier is fixed, the physical key is configurable. */
+	backtrackReference: string
+	forwardReference: string
 }
 
 export type CanvasShortcutSettingKey = keyof CanvasShortcutSettings
@@ -47,6 +50,7 @@ export type CanvasShortcutId =
 	| "edit" | "deleteSelection" | "cancelSelection" | "cycleColor" | "directional"
 	| "extend" | "focus" | "zoom" | "createEdge" | "compactLayout" | "counter"
 	| "formatTitle" | "splitList" | "rotationNext"
+	| "backtrackReference" | "forwardReference"
 
 export const DEFAULT_CANVAS_SHORTCUT_SETTINGS: CanvasShortcutSettings = {
 	edit: ["Space", "Enter"],
@@ -66,6 +70,8 @@ export const DEFAULT_CANVAS_SHORTCUT_SETTINGS: CanvasShortcutSettings = {
 	formatTitle: ["Digit0", "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9"],
 	splitList: "KeyK",
 	rotationNext: "KeyG",
+	backtrackReference: "ArrowUp",
+	forwardReference: "ArrowDown",
 }
 
 /** Actions that use one configurable key. Key families are rendered separately in settings. */
@@ -88,6 +94,8 @@ export const CONFIGURABLE_CANVAS_SHORTCUTS: ReadonlyArray<{
 	{ id: "counter", name: "CTDP 计数", description: "按下 Shift 时清零" },
 	{ id: "splitList", name: "拆分 Markdown 列表", description: "默认使用 Shift+K" },
 	{ id: "rotationNext", name: "轮换聚焦（当前白板）", description: "单按前进到下一个匹配节点，Shift 后退；改绑或清除可禁用" },
+	{ id: "backtrackReference", name: "回溯白板引用", description: "白板未编辑时使用 Alt+↑；仅在 Canvas 内生效" },
+	{ id: "forwardReference", name: "前进到下游白板", description: "白板未编辑时使用 Alt+↓；仅在 Canvas 内生效" },
 ]
 
 export const CANVAS_SHORTCUTS = createCanvasShortcutDefinitions(DEFAULT_CANVAS_SHORTCUT_SETTINGS)
@@ -132,13 +140,15 @@ function createCanvasShortcutDefinitions(settings: CanvasShortcutSettings): Reco
 		formatTitle: { codes: settings.formatTitle, shift: false, ctrl: false, alt: "any", meta: false },
 		splitList: { codes: [settings.splitList], shift: true, ctrl: false, alt: false, meta: false },
 		rotationNext: { codes: [settings.rotationNext], shift: "any", ctrl: false, alt: false, meta: false },
+		backtrackReference: { codes: [settings.backtrackReference], shift: false, ctrl: false, alt: true, meta: false },
+		forwardReference: { codes: [settings.forwardReference], shift: false, ctrl: false, alt: true, meta: false },
 	}
 }
 
 const CANVAS_SHORTCUT_ORDER: CanvasShortcutId[] = [
 	"edit", "deleteSelection", "cancelSelection", "cycleColor", "directional",
 	"extend", "focus", "zoom", "createEdge", "compactLayout", "counter",
-	"formatTitle", "splitList", "rotationNext",
+	"formatTitle", "splitList", "rotationNext", "backtrackReference", "forwardReference",
 ]
 
 export function getCanvasShortcutId(
@@ -208,6 +218,8 @@ export function getShortcutCodes(settings: CanvasShortcutSettings, id: CanvasSho
 		case "formatTitle": return settings.formatTitle
 		case "splitList": return [settings.splitList]
 		case "rotationNext": return [settings.rotationNext]
+		case "backtrackReference": return [settings.backtrackReference]
+		case "forwardReference": return [settings.forwardReference]
 	}
 }
 
@@ -252,6 +264,8 @@ export function withCanvasShortcutCode(
 		case "counter": return { ...settings, counter: code }
 		case "splitList": return { ...settings, splitList: code }
 		case "rotationNext": return { ...settings, rotationNext: code }
+		case "backtrackReference": return { ...settings, backtrackReference: code }
+		case "forwardReference": return { ...settings, forwardReference: code }
 	}
 }
 
@@ -317,6 +331,8 @@ export function normalizeCanvasShortcutSettings(value: unknown): CanvasShortcutS
 		formatTitle: fixedStringArray(source.formatTitle, DEFAULT_CANVAS_SHORTCUT_SETTINGS.formatTitle, 10),
 		splitList: stringValue(source.splitList, DEFAULT_CANVAS_SHORTCUT_SETTINGS.splitList),
 		rotationNext: stringValue(source.rotationNext, DEFAULT_CANVAS_SHORTCUT_SETTINGS.rotationNext),
+		backtrackReference: stringValue(source.backtrackReference, DEFAULT_CANVAS_SHORTCUT_SETTINGS.backtrackReference),
+		forwardReference: stringValue(source.forwardReference, DEFAULT_CANVAS_SHORTCUT_SETTINGS.forwardReference),
 	}
 }
 

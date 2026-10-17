@@ -36,6 +36,7 @@
 		"../src/canvas-reference-color.ts",
 		"../src/canvas-reference-layout.ts",
 		"../src/canvas-thumbnail.ts",
+		"../src/workspace-navigation.ts",
 		"../src/typings/canvas.ts"
 	]
 }

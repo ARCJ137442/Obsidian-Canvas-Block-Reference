@@ -10,6 +10,12 @@ export const DEFAULT_CANVAS_REFERENCE_OPTIONS: Readonly<CanvasReferenceOptions> 
 
 export type CanvasReferenceKind = "file-node" | "text-link";
 export type CanvasTextLinkSyntax = "wikilink" | "markdown" | "embed";
+export type CanvasReferenceNavigationDirection = "back" | "forward";
+
+/** A small persisted map used only to make repeated navigation feel predictable. */
+export type CanvasReferenceNavigationRecency = Record<string, number>;
+
+const MAX_NAVIGATION_RECENCY_ENTRIES = 256;
 
 export type CanvasReferenceNode = {
 	id: string;
@@ -23,6 +29,21 @@ export type CanvasReferenceNode = {
 	file?: string;
 	label?: string;
 };
+
+export function collectCanvasForwardLinks(nodes: readonly unknown[]): { links: string[]; notes: string[] } {
+	const links = new Set<string>();
+	const notes = new Set<string>();
+	for (const node of nodes) {
+		if (!isRecord(node)) continue;
+		if (node.type === "file" && typeof node.file === "string") {
+			if (node.file.toLowerCase().endsWith(".canvas")) links.add(node.file);
+			else if (node.file.toLowerCase().endsWith(".md")) notes.add(node.file);
+		} else if (node.type === "text" && typeof node.text === "string") {
+			for (const link of extractCanvasTextLinks(node.text)) links.add(link.linkpath);
+		}
+	}
+	return { links: [...links], notes: [...notes] };
+}
 
 export type CanvasReferenceEdge = {
 	id: string;
@@ -69,6 +90,57 @@ export type ExtractedCanvasTextLink = {
 	syntax: CanvasTextLinkSyntax;
 	offset: number;
 };
+
+export type CanvasReferenceRecencyResolver = (occurrence: CanvasReferenceOccurrence) => number | undefined;
+
+export function getCanvasReferenceNavigationTime(
+	history: Readonly<CanvasReferenceNavigationRecency>,
+	direction: CanvasReferenceNavigationDirection,
+	fromCanvasPath: string,
+	toCanvasPath: string,
+	nodeId?: string,
+): number | undefined {
+	const value = history[canvasReferenceNavigationKey(direction, fromCanvasPath, toCanvasPath, nodeId)];
+	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+/** Unknown and equally recent candidates retain the existing discovery order. */
+export function sortCanvasCandidatesByRecency<T>(
+	candidates: readonly T[],
+	getRecency: (candidate: T) => number | undefined,
+): T[] {
+	return candidates.map((candidate, index) => ({ candidate, index, time: finiteRecency(getRecency(candidate)) }))
+		.sort((left, right) => right.time - left.time || left.index - right.index)
+		.map(({ candidate }) => candidate);
+}
+
+export function canvasReferenceNavigationKey(
+	direction: CanvasReferenceNavigationDirection,
+	fromCanvasPath: string,
+	toCanvasPath: string,
+	nodeId?: string,
+): string {
+	return [direction, fromCanvasPath, toCanvasPath, nodeId ?? ""].join("\0");
+}
+
+export function normalizeCanvasReferenceNavigationRecency(value: unknown): CanvasReferenceNavigationRecency {
+	if (!isRecord(value)) return {};
+	const entries = Object.entries(value)
+		.filter((entry): entry is [string, number] => entry[0].length > 0 && typeof entry[1] === "number" && Number.isFinite(entry[1]) && entry[1] > 0)
+		.sort((left, right) => right[1] - left[1])
+		.slice(0, MAX_NAVIGATION_RECENCY_ENTRIES);
+	return entries.reduce<CanvasReferenceNavigationRecency>((result, [key, timestamp]) => {
+		result[key] = timestamp;
+		return result;
+	}, {});
+}
+
+export function sortCanvasReferenceOccurrences(
+	occurrences: readonly CanvasReferenceOccurrence[],
+	getRecency?: CanvasReferenceRecencyResolver,
+): CanvasReferenceOccurrence[] {
+	return getRecency ? sortCanvasCandidatesByRecency(occurrences, getRecency) : [...occurrences];
+}
 
 export function normalizeCanvasReferenceOptions(value: unknown): CanvasReferenceOptions {
 	if (!isRecord(value)) return { ...DEFAULT_CANVAS_REFERENCE_OPTIONS };
@@ -214,9 +286,13 @@ export function buildCanvasReferenceGraph(
 	return [...edges.values()];
 }
 
-export function planCanvasReferenceSelection(occurrences: readonly CanvasReferenceOccurrence[]): CanvasReferenceSelectionPlan {
+export function planCanvasReferenceSelection(
+	occurrences: readonly CanvasReferenceOccurrence[],
+	getRecency?: CanvasReferenceRecencyResolver,
+	getSourceRecency?: (path: string) => number | undefined,
+): CanvasReferenceSelectionPlan {
 	if (occurrences.length === 0) return { kind: "empty" };
-	const sources = groupCanvasReferencesBySource(occurrences);
+	const sources = groupCanvasReferencesBySource(occurrences, getRecency, getSourceRecency);
 	if (sources.length > 1) return { kind: "choose-source", sources };
 	const source = sources[0]!;
 	return source.entries.length === 1
@@ -230,16 +306,22 @@ export function planCanvasReferenceSourceSelection(source: CanvasReferenceSource
 		: { kind: "choose-entry", source };
 }
 
-export function groupCanvasReferencesBySource(occurrences: readonly CanvasReferenceOccurrence[]): CanvasReferenceSourceGroup[] {
+export function groupCanvasReferencesBySource(
+	occurrences: readonly CanvasReferenceOccurrence[],
+	getRecency?: CanvasReferenceRecencyResolver,
+	getSourceRecency?: (path: string) => number | undefined,
+): CanvasReferenceSourceGroup[] {
 	const grouped = new Map<string, CanvasReferenceOccurrence[]>();
 	for (const occurrence of occurrences) {
 		const entries = grouped.get(occurrence.sourceCanvasPath) ?? [];
 		entries.push(occurrence);
 		grouped.set(occurrence.sourceCanvasPath, entries);
 	}
-	return [...grouped.entries()]
-		.map(([path, entries]) => ({ path, name: basename(path), entries }))
+	const groups = [...grouped.entries()]
+		.map(([path, entries]) => ({ path, name: basename(path), entries: sortCanvasReferenceOccurrences(entries, getRecency) }))
 		.sort((left, right) => left.name.localeCompare(right.name, "zh-CN") || left.path.localeCompare(right.path));
+	return sortCanvasCandidatesByRecency(groups, (group) => getSourceRecency?.(group.path)
+		?? (getRecency ? Math.max(...group.entries.map((entry) => finiteRecency(getRecency(entry)))) : undefined));
 }
 
 export type CanvasReferenceGraphEdge = {
@@ -391,6 +473,10 @@ function isColor(value: unknown): value is string | number | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
+}
+
+function finiteRecency(value: number | undefined): number {
+	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
 }
 
 function basename(path: string): string {

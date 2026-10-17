@@ -28,7 +28,7 @@ import { isRotationColorCondition } from './rotation-model';
 import type { RotationColorCondition } from './rotation-model';
 import { DEFAULT_COLOR_SEMANTICS, normalizeColorSemantics } from './color-semantics';
 import type { ColorSemantics, TaskSemanticId } from './color-semantics';
-import { openCanvasAndFocusNode } from './workspace-navigation';
+import { isCanvasLeafAtPath, openCanvasAndFocusNode, openCanvasAndWait } from './workspace-navigation';
 import { CanvasDiagnostics, captureCanvasActionState, describeDiagnosticElement, getDiagnosticWindowIds } from './diagnostics';
 import type { DiagnosticReport } from './diagnostics';
 import { writeTextToClipboard } from './clipboard';
@@ -44,8 +44,17 @@ import {
 	type MetaCanvasLayoutMode,
 	type MetaCanvasNodeShapeMode,
 } from './canvas-reference-layout';
-import { DEFAULT_CANVAS_REFERENCE_OPTIONS, normalizeCanvasReferenceOptions, type CanvasReferenceOccurrence, type CanvasReferenceOptions } from './canvas-reference-model';
-import { openCanvasReferencePicker } from './canvas-reference-picker';
+import {
+	DEFAULT_CANVAS_REFERENCE_OPTIONS,
+	canvasReferenceNavigationKey,
+	getCanvasReferenceNavigationTime,
+	normalizeCanvasReferenceNavigationRecency,
+	normalizeCanvasReferenceOptions,
+	type CanvasReferenceNavigationDirection,
+	type CanvasReferenceOccurrence,
+	type CanvasReferenceOptions,
+} from './canvas-reference-model';
+import { openCanvasReferencePicker, openCanvasTargetPicker, type CanvasTarget } from './canvas-reference-picker';
 import { MetaCanvasView, META_CANVAS_VIEW_TYPE } from './meta-canvas-view';
 // import { CMD_selectAllEdgesInCanvas } from './commands/select-all-edges';
 // ! ✅「选择所有连边」的功能，在AdvancedCanvas中有了
@@ -53,6 +62,7 @@ import { MetaCanvasView, META_CANVAS_VIEW_TYPE } from './meta-canvas-view';
 export default class CanvasReferencePlugin extends Plugin {
 	private settings: CanvasShortcutSettings = DEFAULT_CANVAS_SHORTCUT_SETTINGS
 	private persistedData: Record<string, unknown> = {}
+	private persistedDataSave: Promise<void> = Promise.resolve()
 	/** 轮换聚焦条件，供设置页读取与外部插件联动；默认黄色。 */
 	rotationColor: RotationColorCondition = "3"
 	/** 颜色→任务语义，供设置页与 life-panel 等扩展读取；与轮换聚焦条件独立。 */
@@ -68,6 +78,8 @@ export default class CanvasReferencePlugin extends Plugin {
 	private _nodeRotation!: NodeRotationService
 	private canvasReferenceService!: CanvasReferenceService
 	private canvasReferenceOptions: CanvasReferenceOptions = { ...DEFAULT_CANVAS_REFERENCE_OPTIONS }
+	private referenceNavigationRecency: Record<string, number> = {}
+	private referenceNavigationClock = 0
 	private metaCanvasPositions: CanvasGraphPositionMap = {}
 	private metaCanvasLayoutMode: MetaCanvasLayoutMode = DEFAULT_META_CANVAS_LAYOUT_MODE
 	private metaCanvasNodeShapeMode: MetaCanvasNodeShapeMode = DEFAULT_META_CANVAS_NODE_SHAPE
@@ -82,6 +94,8 @@ export default class CanvasReferencePlugin extends Plugin {
 		this.colorSemantics = normalizeColorSemantics(this.persistedData.colorSemantics)
 		this.connectorCode = normalizeString(this.persistedData.connectorCode, "ControlLeft")
 		this.canvasReferenceOptions = normalizeCanvasReferenceOptions(this.persistedData.canvasReferenceOptions)
+		this.referenceNavigationRecency = normalizeCanvasReferenceNavigationRecency(this.persistedData.referenceNavigationRecency)
+		this.referenceNavigationClock = Math.max(0, ...Object.values(this.referenceNavigationRecency))
 		this.metaCanvasPositions = normalizeMetaCanvasPositions(this.persistedData.metaCanvasPositions)
 		this.metaCanvasLayoutMode = normalizeMetaCanvasLayoutMode(this.persistedData.metaCanvasLayoutMode)
 		this.metaCanvasNodeShapeMode = normalizeMetaCanvasNodeShapeMode(this.persistedData.metaCanvasNodeShapeMode)
@@ -147,29 +161,35 @@ export default class CanvasReferencePlugin extends Plugin {
 		return this.canvasReferenceService.getIncomingCanvasReferences(targetCanvasPath)
 	}
 
+	private savePersistedData(): Promise<void> {
+		const save = this.persistedDataSave.catch(() => undefined).then(() => this.saveData(this.persistedData))
+		this.persistedDataSave = save
+		return save
+	}
+
 	async updateCanvasReferenceOption(key: keyof CanvasReferenceOptions, value: boolean): Promise<void> {
 		this.canvasReferenceOptions = { ...this.canvasReferenceOptions, [key]: value }
 		this.persistedData.canvasReferenceOptions = this.canvasReferenceOptions
-		await this.saveData(this.persistedData)
+		await this.savePersistedData()
 		this.canvasReferenceService.invalidate()
 	}
 
 	async updateMetaCanvasPositions(positions: CanvasGraphPositionMap): Promise<void> {
 		this.metaCanvasPositions = normalizeMetaCanvasPositions(positions)
 		this.persistedData.metaCanvasPositions = this.metaCanvasPositions
-		await this.saveData(this.persistedData)
+		await this.savePersistedData()
 	}
 
 	async updateMetaCanvasLayoutMode(mode: MetaCanvasLayoutMode): Promise<void> {
 		this.metaCanvasLayoutMode = normalizeMetaCanvasLayoutMode(mode)
 		this.persistedData.metaCanvasLayoutMode = this.metaCanvasLayoutMode
-		await this.saveData(this.persistedData)
+		await this.savePersistedData()
 	}
 
 	async updateMetaCanvasNodeShapeMode(mode: MetaCanvasNodeShapeMode): Promise<void> {
 		this.metaCanvasNodeShapeMode = normalizeMetaCanvasNodeShapeMode(mode)
 		this.persistedData.metaCanvasNodeShapeMode = this.metaCanvasNodeShapeMode
-		await this.saveData(this.persistedData)
+		await this.savePersistedData()
 	}
 
 	refreshMetaCanvasViews(): void {
@@ -186,7 +206,7 @@ export default class CanvasReferencePlugin extends Plugin {
 			setLayoutMode: (mode) => this.updateMetaCanvasLayoutMode(mode),
 			getNodeShapeMode: () => this.getMetaCanvasNodeShapeMode(),
 			setNodeShapeMode: (mode) => this.updateMetaCanvasNodeShapeMode(mode),
-			focusNode: (path, nodeId, sourceLeaf) => this.focusNode(path, nodeId, false, sourceLeaf?.getContainer().win ?? null, sourceLeaf),
+			openReferences: (entries, fromPath, sourceLeaf) => this.openReferenceNavigation(entries, fromPath, sourceLeaf, "back"),
 		}))
 		this.addCommand({
 			id: "backtrack-canvas-reference",
@@ -196,6 +216,15 @@ export default class CanvasReferencePlugin extends Plugin {
 				if (!canvasPath) return false
 				if (!checking) void this.backtrackCanvasReferences(canvasPath)
 				return true
+			},
+		})
+		this.addCommand({
+			id: "forward-canvas-reference",
+			name: "前进到下游白板引用",
+			checkCallback: (checking) => {
+				if (!this.getActiveCanvasPath()) return false;
+				if (!checking) void this.forwardCanvasReferences();
+				return true;
 			},
 		})
 		this.addCommand({
@@ -216,7 +245,7 @@ export default class CanvasReferencePlugin extends Plugin {
 				this.metaCanvasPositions[file.path] = this.metaCanvasPositions[oldPath]
 				delete this.metaCanvasPositions[oldPath]
 				this.persistedData.metaCanvasPositions = this.metaCanvasPositions
-				void this.saveData(this.persistedData)
+				void this.savePersistedData()
 			}
 			if (oldCanvas || newCanvas) this.canvasReferenceService.invalidate()
 		}))
@@ -224,7 +253,7 @@ export default class CanvasReferencePlugin extends Plugin {
 			if (isCanvasVaultFile(file) && this.metaCanvasPositions[file.path]) {
 				delete this.metaCanvasPositions[file.path]
 				this.persistedData.metaCanvasPositions = this.metaCanvasPositions
-				void this.saveData(this.persistedData)
+				void this.savePersistedData()
 			}
 			if (isCanvasVaultFile(file)) this.canvasReferenceService.invalidate()
 		}))
@@ -236,15 +265,111 @@ export default class CanvasReferencePlugin extends Plugin {
 		return view?.getViewType?.() === "canvas" ? view.file?.path : undefined
 	}
 
-	private async backtrackCanvasReferences(canvasPath: string): Promise<void> {
-		const sourceLeaf = this.app.workspace.activeLeaf ?? undefined
+	private async backtrackCanvasReferences(canvasPath: string, sourceLeaf = this.app.workspace.activeLeaf ?? undefined): Promise<void> {
 		try {
 			const occurrences = await this.getIncomingCanvasReferences(canvasPath)
-			openCanvasReferencePicker(this.app, occurrences, (sourcePath, nodeId) =>
-				this.focusNode(sourcePath, nodeId, false, sourceLeaf?.getContainer().win ?? null, sourceLeaf))
+			if (!isCanvasLeafAtPath(this.app, sourceLeaf, canvasPath)) return
+			this.openReferenceNavigation(occurrences, canvasPath, sourceLeaf, "back")
 		} catch (error) {
 			new Notice(`读取白板入口失败：${error instanceof Error ? error.message : String(error)}`)
 		}
+	}
+
+	private async forwardCanvasReferences(canvasOverride?: Canvas, sourceLeafOverride?: WorkspaceLeaf): Promise<void> {
+		const sourceLeaf = sourceLeafOverride ?? (canvasOverride ? this.findCanvasLeaf(canvasOverride) : this.app.workspace.activeLeaf);
+		const view = sourceLeaf?.view as { getViewType?: () => string; file?: { path: string }; canvas?: Canvas } | undefined;
+		const sourcePath = view?.file?.path;
+		if (!sourceLeaf || view?.getViewType?.() !== "canvas" || !sourcePath || !view.canvas || (canvasOverride && view.canvas !== canvasOverride)) return;
+		try {
+			const selected = [...(view.canvas.selection ?? [])];
+			const selectedNodes = selected.map((item) => item.getData?.());
+			const targetPaths = await this.canvasReferenceService.getForwardCanvasTargets(sourcePath, selected.length > 0 ? selectedNodes : undefined);
+			if (!isCanvasLeafAtPath(this.app, sourceLeaf, sourcePath)) return;
+			if (targetPaths.length === 0) {
+				if (selected.length > 0) new Notice("选中内容中没有可前进的白板");
+				return;
+			}
+			const targets: CanvasTarget[] = targetPaths.map((path) => ({
+				path,
+				name: path.split("/").pop()?.replace(/\.canvas$/i, "") ?? path,
+				lastJumpedAt: this.getReferenceNavigationRecency("forward", sourcePath, path),
+			}));
+			const openTarget = (target: CanvasTarget): void => {
+				void this.openTargetAndFocusBackReference(target.path, sourcePath, null, sourceLeaf ?? undefined);
+			};
+			if (targets.length === 1) await this.openTargetAndFocusBackReference(targets[0]!.path, sourcePath, null, sourceLeaf ?? undefined);
+			else openCanvasTargetPicker(this.app, targets, openTarget, { shortcutCode: this.settings.forwardReference });
+		} catch (error) {
+			new Notice(`前进到下游白板失败：${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
+	private async openTargetAndFocusBackReference(targetPath: string, sourcePath: string, sourceWindow: Window | null, replaceLeaf?: WorkspaceLeaf): Promise<void> {
+		const opened = await openCanvasAndWait(this.app, targetPath, false, sourceWindow, replaceLeaf);
+		if (!opened || !isCanvasLeafAtPath(this.app, opened.leaf, targetPath)) return;
+		await this.markReferenceNavigation("forward", sourcePath, targetPath);
+		const occurrences = await this.canvasReferenceService.getBackReferencesInCanvas(targetPath, sourcePath);
+		if (occurrences.length === 0 || !isCanvasLeafAtPath(this.app, opened.leaf, targetPath)) return;
+		this.openReferenceNavigation(occurrences, sourcePath, opened.leaf, "forward");
+	}
+
+	private openReferenceNavigation(
+		entries: readonly CanvasReferenceOccurrence[],
+		fromCanvasPath: string,
+		sourceLeaf: WorkspaceLeaf | undefined,
+		direction: CanvasReferenceNavigationDirection,
+	): void {
+		openCanvasReferencePicker(this.app, entries, (path, nodeId) =>
+			this.focusNode(path, nodeId, false, sourceLeaf?.getContainer().win ?? null, sourceLeaf), {
+			direction,
+			shortcutCode: direction === "back" ? this.settings.backtrackReference : this.settings.forwardReference,
+			getSourceRecency: (path) => this.getReferenceNavigationRecency(direction, fromCanvasPath, path),
+			getEntryRecency: (entry) => this.getReferenceNavigationRecency(direction, fromCanvasPath, entry.sourceCanvasPath, entry.sourceNodeId),
+			onFocused: (entry) => this.markReferenceNavigation(direction, fromCanvasPath, entry.sourceCanvasPath, entry.sourceNodeId),
+		});
+	}
+
+	private getReferenceNavigationRecency(
+		direction: CanvasReferenceNavigationDirection,
+		fromCanvasPath: string,
+		toCanvasPath: string,
+		nodeId?: string,
+	): number | undefined {
+		return getCanvasReferenceNavigationTime(this.referenceNavigationRecency, direction, fromCanvasPath, toCanvasPath, nodeId);
+	}
+
+	private markReferenceNavigation(
+		direction: CanvasReferenceNavigationDirection,
+		fromCanvasPath: string,
+		toCanvasPath: string,
+		nodeId?: string,
+	): Promise<void> {
+		const timestamp = Math.max(Date.now(), this.referenceNavigationClock + 1);
+		this.referenceNavigationClock = timestamp;
+		this.referenceNavigationRecency[canvasReferenceNavigationKey(direction, fromCanvasPath, toCanvasPath)] = timestamp;
+		if (nodeId) this.referenceNavigationRecency[canvasReferenceNavigationKey(direction, fromCanvasPath, toCanvasPath, nodeId)] = timestamp;
+		this.referenceNavigationRecency = normalizeCanvasReferenceNavigationRecency(this.referenceNavigationRecency);
+		this.persistedData.referenceNavigationRecency = this.referenceNavigationRecency;
+		return this.savePersistedData().catch((error) => {
+			console.error("[WhiteboardArc] 保存白板跳转顺序失败。", error);
+			new Notice("已跳转，但最近跳转记录保存失败");
+		});
+	}
+
+	private findCanvasLeaf(canvas: Canvas): WorkspaceLeaf | undefined {
+		let sourceLeaf: WorkspaceLeaf | undefined;
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			if (!sourceLeaf && (leaf.view as { canvas?: Canvas } | undefined)?.canvas === canvas) sourceLeaf = leaf;
+		});
+		return sourceLeaf;
+	}
+
+	private navigateReferenceFromCanvas(canvas: Canvas, direction: "back" | "forward"): void {
+		const sourceLeaf = this.findCanvasLeaf(canvas);
+		const canvasPath = (sourceLeaf?.view as { file?: { path: string } } | undefined)?.file?.path;
+		if (!sourceLeaf || !canvasPath) return;
+		if (direction === "back") void this.backtrackCanvasReferences(canvasPath, sourceLeaf);
+		else void this.forwardCanvasReferences(canvas, sourceLeaf);
 	}
 
 	private async openMetaCanvas(): Promise<void> {
@@ -278,7 +403,7 @@ export default class CanvasReferencePlugin extends Plugin {
 		this.settings = withCanvasShortcutCode(this.settings, id, code, index)
 		this.clearAllKeyboardStates()
 		this.persistedData.shortcuts = this.settings
-		await this.saveData(this.persistedData)
+		await this.savePersistedData()
 	}
 
 	/** 对外公开的轮换服务：供 life-panel 等插件把自定义白板集合传入轮换。 */
@@ -294,7 +419,7 @@ export default class CanvasReferencePlugin extends Plugin {
 	async updateColorSemantics(color: string, semantic: TaskSemanticId): Promise<void> {
 		this.colorSemantics = { ...this.colorSemantics, [color]: semantic }
 		this.persistedData.colorSemantics = this.colorSemantics
-		await this.saveData(this.persistedData)
+		await this.savePersistedData()
 	}
 
 	/** 连接触发键的 KeyboardEvent.code（供设置页读取；空串 = 已禁用）。 */
@@ -308,7 +433,7 @@ export default class CanvasReferencePlugin extends Plugin {
 		// 连接键变更后清掉各窗口的按住状态，避免旧键状态污染新配置
 		for (const state of this.connectorHeldStates.values()) state.held = false
 		for (const tracker of this.connectorTrackers.values()) tracker.clearSession()
-		await this.saveData(this.persistedData)
+		await this.savePersistedData()
 	}
 
 	/**
@@ -323,7 +448,7 @@ export default class CanvasReferencePlugin extends Plugin {
 	async updateRotationColor(color: RotationColorCondition): Promise<void> {
 		this.rotationColor = color
 		this.persistedData.rotationColor = color
-		await this.saveData(this.persistedData)
+		await this.savePersistedData()
 	}
 
 	private registerRotationCommands(): void {
@@ -555,6 +680,7 @@ export default class CanvasReferencePlugin extends Plugin {
 					rotate: (rotateCanvas, direction) => {
 						void this.nodeRotation.advanceFromCanvas(rotateCanvas, direction)
 					},
+					navigateReference: (referenceCanvas, direction) => this.navigateReferenceFromCanvas(referenceCanvas, direction),
 				}, this.settings)
 				const effectObserved = beforeAction === undefined ? undefined : beforeAction !== captureCanvasActionState(canvas)
 				this.recordKeyboard(eventWindow, event, canvas, handled,

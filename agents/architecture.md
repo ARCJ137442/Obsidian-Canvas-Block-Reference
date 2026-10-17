@@ -1,6 +1,6 @@
 # 架构与数据完整性
 
-> 最后更新：2026-08-26
+> 最后更新：2026-10-18
 
 ## 运行时数据流
 
@@ -58,6 +58,16 @@ ID 修改必须拦截空值与重复值，并在失败时给出 Notice；改 ID 
 `src/diagnostics.ts` 使用有上限的内存环形缓冲，默认关闭；不得把正文、实际输入、`KeyboardEvent.key` 或剪贴板写入报告。`src/plugin-bridge.ts` 只在诊断会话中与 Canvas Keyboard Pan 共享 session ID，停止报告必须记录最终桥接状态。正常路径不运行后台轮询；Pan tick 只在诊断开启时按 100 ms 降采样。
 
 移动端效果可能晚于下一动画帧：同步指纹、下一动画帧和 150 ms settled 阶段表达不同观察窗口，不能把“同步无变化”直接判定为动作失败。
+
+## 白板引用导航与最近记录（0.6.1）
+
+- `canvas-reference-service.ts` 通过 Obsidian 索引发现来源白板，再按需读取 Canvas JSON；不持久化派生关系索引。
+- 无选中时前进候选服从 ARC 引用范围设置；明确选中时限定在选中节点，支持白板文件、嵌入 Markdown 笔记及文本内链，多选取并集。选择节点不会扩大为整张白板。
+- `canvas-reference-model.ts` 定义排序与记录键。历史按导航方向、起点、目标白板及可选节点 ID 区分；白板时间与入口时间独立，未访问或同时间的候选保留原顺序。
+- `referenceNavigationRecency` 只在打开目标或聚焦节点成功后更新，写入插件 `data.json`，最多保存 256 项。所有本实例的配置写入经 `main.ts` 的 `savePersistedData()` 排队；这不承诺跨设备并发写入的合并。
+- 文字选择器、元白板的回溯入口及边详情共用同一导航入口，键盘提示与快捷选择从当前按键配置派生。查询完成时检查来源 leaf 是否仍在原白板，避免过期结果重新打开选择器。
+- `workspace-navigation.ts` 等待目标 leaf 所属窗口的帧，并以 50ms 计时器处理隐藏窗口暂停帧的情况。隐藏窗口通过原生 `panTo` 立即提交节点中心，缩放在窗口可见后继续原生渲染。未能选中节点返回失败，不能据此记录成功跳转。
+- Canvas 的 `requestFrame()` 仅请求渲染，不接受回调；等待渲染使用目标 Window 的 `requestAnimationFrame` 与计时器回退，不能把函数传入 Canvas 的时间戳参数。
 
 ## Monkey patch 边界
 

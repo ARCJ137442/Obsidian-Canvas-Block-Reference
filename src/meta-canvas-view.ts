@@ -1,8 +1,7 @@
 import { ItemView, Notice, setIcon, TFile, type App, type WorkspaceLeaf } from "obsidian";
-import { openCanvasReferencePicker } from "./canvas-reference-picker";
 import { canvasReferenceEdgeKey, layoutCanvasReferenceGraph, resolveCanvasCardPosition, resolveMetaCanvasNodeSize, META_CANVAS_NODE_HEIGHT, META_CANVAS_NODE_WIDTH, type CanvasGraphLayout, type CanvasGraphNodeSize, type CanvasGraphNodeSizeMap, type CanvasGraphPositionMap, type MetaCanvasLayoutMode, type MetaCanvasNodeShapeMode } from "./canvas-reference-layout";
 import type { CanvasReferenceGraph, CanvasReferenceService } from "./canvas-reference-service";
-import type { CanvasReferenceGraphEdge } from "./canvas-reference-model";
+import type { CanvasReferenceGraphEdge, CanvasReferenceOccurrence } from "./canvas-reference-model";
 import { canvasSnapshotAspectRatio, renderCanvasThumbnail } from "./canvas-thumbnail";
 import { showMetaCanvasLayoutMenu } from "./meta-canvas-layout-menu";
 
@@ -18,7 +17,7 @@ type MetaCanvasActions = {
 	setLayoutMode(mode: MetaCanvasLayoutMode): Promise<void>;
 	getNodeShapeMode(): MetaCanvasNodeShapeMode;
 	setNodeShapeMode(mode: MetaCanvasNodeShapeMode): Promise<void>;
-	focusNode(path: string, nodeId: string, sourceLeaf: WorkspaceLeaf): Promise<boolean>;
+	openReferences(entries: readonly CanvasReferenceOccurrence[], fromPath: string, sourceLeaf: WorkspaceLeaf): void;
 };
 
 type PointerPoint = { x: number; y: number };
@@ -54,6 +53,8 @@ export class MetaCanvasView extends ItemView {
 	private saveTimer?: number;
 	private readonly boardElements = new Map<string, HTMLButtonElement>();
 	private readonly edgeElements = new Map<string, SVGPathElement>();
+	private zoomAnimation?: number;
+	private zoomAnimationGeneration = 0;
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -80,6 +81,7 @@ export class MetaCanvasView extends ItemView {
 	}
 
 	async onClose(): Promise<void> {
+		this.stopZoomAnimation();
 		if (this.saveTimer !== undefined) this.contentEl.ownerDocument.defaultView?.clearTimeout(this.saveTimer);
 		this.unsubscribe?.();
 		this.unsubscribe = undefined;
@@ -119,6 +121,7 @@ export class MetaCanvasView extends ItemView {
 	}
 
 	private renderView(initial: boolean): void {
+		this.stopZoomAnimation();
 		this.contentEl.empty();
 		this.contentEl.addClass("arc-meta-canvas-view");
 		const graph = this.graph;
@@ -126,7 +129,7 @@ export class MetaCanvasView extends ItemView {
 		const root = this.contentEl.createDiv({ cls: "arc-meta-canvas-root" });
 		const viewport = root.createDiv({
 			cls: "arc-meta-canvas-viewport",
-			attr: { tabindex: "0", role: "application", "aria-label": "全局白板引用图；中键或右键拖动平移，触摸拖动，双指缩放" },
+			attr: { tabindex: "0", role: "application", "aria-label": "全局引用；中键或右键拖动平移，触摸拖动，双指缩放" },
 		});
 		this.viewport = viewport;
 		if (graph.boards.length === 0) {
@@ -178,7 +181,7 @@ export class MetaCanvasView extends ItemView {
 		this.drawEdges(graph.edges, layout.positions, layout.edgeRoutes, graph.boards);
 
 		const title = root.createDiv({ cls: "arc-meta-canvas-title" });
-		title.createEl("strong", { text: "全局引用图" });
+		title.createEl("strong", { text: "全局引用" });
 		title.createEl("span", { text: `${graph.boards.length} 张白板 · ${graph.edges.length} 组关系` });
 		const controls = root.createDiv({ cls: "arc-meta-canvas-controls" });
 		this.addControl(controls, "−", "缩小", () => this.setZoom(this.zoom / ZOOM_STEP));
@@ -307,7 +310,7 @@ export class MetaCanvasView extends ItemView {
 			button.addEventListener("click", () => {
 				if (incoming) {
 					this.selectEdge(canvasReferenceEdgeKey(edge.sourceCanvasPath, edge.targetCanvasPath));
-					openCanvasReferencePicker(this.app, edge.occurrences, (path, nodeId) => this.actions.focusNode(path, nodeId, this.leaf));
+					this.actions.openReferences(edge.occurrences, edge.targetCanvasPath, this.leaf);
 				} else {
 					this.selectBoard(neighborPath);
 					this.centerBoard(neighborPath);
@@ -505,13 +508,18 @@ export class MetaCanvasView extends ItemView {
 			hit.addEventListener("click", (event) => {
 				event.stopPropagation();
 				this.selectEdge(key);
-				openCanvasReferencePicker(this.app, edge.occurrences, (path, nodeId) => this.actions.focusNode(path, nodeId, this.leaf));
+			});
+			hit.addEventListener("dblclick", (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				this.selectEdge(key);
+				this.actions.openReferences(edge.occurrences, edge.targetCanvasPath, this.leaf);
 			});
 			hit.addEventListener("keydown", (event) => {
 				if (event.key !== "Enter" && event.key !== " ") return;
 				event.preventDefault();
 				this.selectEdge(key);
-				openCanvasReferencePicker(this.app, edge.occurrences, (path, nodeId) => this.actions.focusNode(path, nodeId, this.leaf));
+				this.actions.openReferences(edge.occurrences, edge.targetCanvasPath, this.leaf);
 			});
 			svg.appendChild(hit);
 			if (edge.occurrences.length > 1) {
@@ -545,9 +553,13 @@ export class MetaCanvasView extends ItemView {
 		viewport.addEventListener("pointercancel", (event) => this.endGesture(event));
 		viewport.addEventListener("wheel", (event) => {
 			event.preventDefault();
-			if (event.ctrlKey) {
+			if (event.shiftKey) {
+				this.panX -= event.deltaY || event.deltaX;
+				this.applyTransform();
+			} else if (event.ctrlKey) {
 				const rect = viewport.getBoundingClientRect();
-				this.zoomAt(event.deltaY < 0 ? this.zoom * ZOOM_STEP : this.zoom / ZOOM_STEP, event.clientX - rect.left, event.clientY - rect.top);
+				const factor = Math.exp(-event.deltaY * 0.0024);
+				this.animateZoomAt(this.zoom * factor, event.clientX - rect.left, event.clientY - rect.top);
 			} else {
 				this.panX -= event.deltaX;
 				this.panY -= event.deltaY;
@@ -674,8 +686,39 @@ export class MetaCanvasView extends ItemView {
 	}
 
 	private setZoom(value: number): void {
+		this.stopZoomAnimation();
 		const viewport = this.viewport;
 		this.zoomAt(value, (viewport?.clientWidth ?? 0) / 2, (viewport?.clientHeight ?? 0) / 2);
+	}
+
+	private animateZoomAt(value: number, x: number, y: number): void {
+		const win = this.contentEl.ownerDocument.defaultView;
+		if (!win) {
+			this.zoomAt(value, x, y);
+			return;
+		}
+		this.stopZoomAnimation();
+		const generation = this.zoomAnimationGeneration;
+		const startZoom = this.zoom;
+		const targetZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value));
+		const started = performance.now();
+		const duration = 110;
+		const tick = (now: number): void => {
+			if (generation !== this.zoomAnimationGeneration) return;
+			const progress = Math.min(1, (now - started) / duration);
+			const eased = 1 - Math.pow(1 - progress, 3);
+			this.zoomAt(startZoom + (targetZoom - startZoom) * eased, x, y);
+			if (progress < 1) this.zoomAnimation = win.requestAnimationFrame(tick);
+			else this.zoomAnimation = undefined;
+		};
+		this.zoomAnimation = win.requestAnimationFrame(tick);
+	}
+
+	private stopZoomAnimation(): void {
+		this.zoomAnimationGeneration += 1;
+		if (this.zoomAnimation === undefined) return;
+		this.contentEl.ownerDocument.defaultView?.cancelAnimationFrame(this.zoomAnimation);
+		this.zoomAnimation = undefined;
 	}
 
 	private zoomAt(value: number, x: number, y: number, previousCenter?: PointerPoint, previousPanX?: number, previousPanY?: number): void {
@@ -692,6 +735,7 @@ export class MetaCanvasView extends ItemView {
 	}
 
 	private fitGraph(): void {
+		this.stopZoomAnimation();
 		const viewport = this.viewport;
 		const scene = this.scene;
 		if (!viewport || !scene) return;
@@ -779,7 +823,7 @@ export class MetaCanvasView extends ItemView {
 
 	private async backtrackBoard(path: string): Promise<void> {
 		const entries = await this.references.getIncomingCanvasReferences(path);
-		openCanvasReferencePicker(this.app, entries, (sourcePath, nodeId) => this.actions.focusNode(sourcePath, nodeId, this.leaf));
+		this.actions.openReferences(entries, path, this.leaf);
 	}
 
 	private async openBoard(path: string): Promise<void> {

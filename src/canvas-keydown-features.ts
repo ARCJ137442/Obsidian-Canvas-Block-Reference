@@ -15,6 +15,7 @@ export interface CanvasKeyboardActions {
 	startContinuousZoom?: (canvas: Canvas, shiftKey: boolean) => void;
 	/** 轮换聚焦（当前白板）：direction=1 前进、-1 后退。 */
 	rotate?: (canvas: Canvas, direction: -1 | 1) => void;
+	navigateReference?: (canvas: Canvas, direction: "back" | "forward") => void;
 }
 
 // 独立出的功能：白板中键盘按下的功能
@@ -457,6 +458,8 @@ export function onCanvasKeyDown(
 	if (shortcutId === "rotationNext") {
 		actions.rotate?.(canvas, shiftKey ? -1 : 1)
 	}
+	if (shortcutId === "backtrackReference") actions.navigateReference?.(canvas, "back")
+	if (shortcutId === "forwardReference") actions.navigateReference?.(canvas, "forward")
 	return true
 }
 

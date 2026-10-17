@@ -4,6 +4,7 @@ import model from "../.test-build/canvas-reference-model.js"
 import color from "../.test-build/canvas-reference-color.js"
 import layout from "../.test-build/canvas-reference-layout.js"
 import thumbnail from "../.test-build/canvas-thumbnail.js"
+import navigation from "../.test-build/workspace-navigation.js"
 
 const {
 	DEFAULT_CANVAS_REFERENCE_OPTIONS,
@@ -14,11 +15,70 @@ const {
 	parseCanvasSnapshot,
 	planCanvasReferenceSelection,
 	planCanvasReferenceSourceSelection,
+	groupCanvasReferencesBySource,
+	sortCanvasReferenceOccurrences,
+	canvasReferenceNavigationKey,
+	normalizeCanvasReferenceNavigationRecency,
+	getCanvasReferenceNavigationTime,
+	sortCanvasCandidatesByRecency,
+	collectCanvasForwardLinks,
 } = model
 
 const { meanTaskHue } = color
 const { layoutCanvasReferenceGraph, resolveMetaCanvasNodeSize, META_CANVAS_NODE_HEIGHT, META_CANVAS_NODE_WIDTH } = layout
 const { canvasSnapshotAspectRatio } = thumbnail
+const { openCanvasAndFocusNode } = navigation
+
+function focusFixture(stalledFrames = false, canSelect = true) {
+	const node = { id: "entry", x: 0, y: 0, width: 100, height: 100, getBBox: () => ({ minX: 0, minY: 0, maxX: 100, maxY: 100 }) }
+	const file = { path: "Target.canvas", extension: "canvas" }
+	const win = {
+		focus() {},
+		requestAnimationFrame(callback) { if (!stalledFrames) queueMicrotask(() => callback(0)); return 1 },
+		cancelAnimationFrame() {},
+	}
+	const canvas = {
+		nodes: new Map([[node.id, node]]), selection: new Set(),
+		selectOnly(item) { if (canSelect) this.selection = new Set([item]) },
+		zoomToSelection() {}, zoomToBbox() {}, requestFrame(...args) { assert.equal(args.length, 0) },
+		getViewportBBox: () => ({ minX: -100, minY: -100, maxX: 200, maxY: 200 }),
+	}
+	const leaf = { view: { file, canvas, getViewType: () => "canvas" }, getContainer: () => ({ win }), async openFile() {} }
+	const app = {
+		vault: { getAbstractFileByPath: () => file },
+		workspace: { activeLeaf: leaf, getLeavesOfType: () => [leaf], containerEl: { ownerDocument: { defaultView: win } }, async revealLeaf() {}, setActiveLeaf(value) { this.activeLeaf = value } },
+	}
+	return { app, leaf, win, canvas }
+}
+
+test("Canvas focus finishes even when the target window suspends animation frames", { timeout: 2000 }, async () => {
+	const fixture = focusFixture(true)
+	assert.equal(await openCanvasAndFocusNode(fixture.app, "Target.canvas", "entry", false, fixture.win, fixture.leaf), true)
+	assert.deepEqual([...fixture.canvas.selection].map((node) => node.id), ["entry"])
+})
+
+test("Canvas focus does not report success when the node could not be selected", async () => {
+	const fixture = focusFixture(false, false)
+	assert.equal(await openCanvasAndFocusNode(fixture.app, "Target.canvas", "entry", false, fixture.win, fixture.leaf), false)
+})
+
+test("hidden Canvas navigation commits the selected node center without waiting for rendering", async () => {
+	const fixture = focusFixture(true)
+	fixture.win.document = { hidden: true }
+	let center
+	fixture.canvas.panTo = (x, y) => { center = { x, y } }
+	assert.equal(await openCanvasAndFocusNode(fixture.app, "Target.canvas", "entry", false, fixture.win, fixture.leaf), true)
+	assert.deepEqual(center, { x: 50, y: 50 })
+})
+
+test("Canvas focus stops when its owning leaf closes during a frame wait", async () => {
+	const fixture = focusFixture()
+	fixture.win.requestAnimationFrame = (callback) => {
+		queueMicrotask(() => { fixture.app.workspace.getLeavesOfType = () => []; callback(0) })
+		return 1
+	}
+	assert.equal(await openCanvasAndFocusNode(fixture.app, "Target.canvas", "entry", false, fixture.win, fixture.leaf), false)
+})
 
 function occurrence(sourceCanvasPath, sourceNodeId, targetCanvasPath, kind = "file-node", entryLabel = sourceNodeId) {
 	return { sourceCanvasPath, sourceNodeId, targetCanvasPath, kind, entryLabel, x: 0, y: 0, width: 80, height: 40 }
@@ -94,6 +154,74 @@ test("text node wikilinks, Markdown links and embeds keep their entry kind and l
 		["A.canvas", "text-link", "Alpha"],
 		["B.canvas", "text-link", "Beta"],
 	])
+})
+
+test("forward selection collects only selected Canvas files, note contents and text links", () => {
+	assert.deepEqual(collectCanvasForwardLinks([
+		{ type: "file", file: "B.canvas" },
+		{ type: "file", file: "B.canvas" },
+		{ type: "file", file: "Notes/entry.md" },
+		{ type: "text", text: "[[B.canvas]] [See C](C.canvas) ![[D.canvas]]" },
+		{ type: "file", file: "image.png" },
+	]), { links: ["B.canvas", "C.canvas", "D.canvas"], notes: ["Notes/entry.md"] })
+	assert.deepEqual(collectCanvasForwardLinks([{ type: "group" }, { type: "text", text: "No links" }]), { links: [], notes: [] })
+})
+
+test("reference candidates put the most recently visited source and entry first", () => {
+	const entries = [
+		occurrence("A.canvas", "a-old", "T.canvas"),
+		occurrence("A.canvas", "a-new", "T.canvas"),
+		occurrence("B.canvas", "b-new", "T.canvas"),
+	]
+	const recent = new Map([
+		["A.canvas:a-old", 10],
+		["A.canvas:a-new", 40],
+		["B.canvas:b-new", 30],
+	])
+	const resolve = (entry) => recent.get(`${entry.sourceCanvasPath}:${entry.sourceNodeId}`)
+	const groups = groupCanvasReferencesBySource(entries, resolve)
+	assert.deepEqual(groups.map((group) => group.path), ["A.canvas", "B.canvas"])
+	assert.deepEqual(groups[0].entries.map((entry) => entry.sourceNodeId), ["a-new", "a-old"])
+	assert.deepEqual(sortCanvasReferenceOccurrences(entries, resolve).map((entry) => entry.sourceNodeId), ["a-new", "b-new", "a-old"])
+})
+
+test("navigation recency keys are directional and malformed persisted values are discarded", () => {
+	const back = canvasReferenceNavigationKey("back", "T.canvas", "A.canvas", "node")
+	const forward = canvasReferenceNavigationKey("forward", "T.canvas", "A.canvas", "node")
+	assert.notEqual(back, forward)
+	assert.deepEqual(normalizeCanvasReferenceNavigationRecency({
+		[back]: 20,
+		[forward]: 10,
+		bad: "later",
+		zero: 0,
+	}), { [back]: 20, [forward]: 10 })
+})
+
+test("board visits do not overwrite per-entry recency and sorting keeps unseen candidates stable", () => {
+	const history = {
+		[canvasReferenceNavigationKey("back", "T.canvas", "A.canvas")]: 100,
+		[canvasReferenceNavigationKey("back", "T.canvas", "A.canvas", "old")]: 20,
+		[canvasReferenceNavigationKey("back", "T.canvas", "A.canvas", "new")]: 90,
+	}
+	assert.equal(getCanvasReferenceNavigationTime(history, "back", "T.canvas", "A.canvas", "old"), 20)
+	assert.equal(getCanvasReferenceNavigationTime(history, "back", "T.canvas", "A.canvas", "unknown"), undefined)
+	const targets = [{ path: "Z" }, { path: "A", time: 10 }, { path: "B", time: 20 }, { path: "C" }]
+	assert.deepEqual(sortCanvasCandidatesByRecency(targets, (target) => target.time).map((target) => target.path), ["B", "A", "Z", "C"])
+	assert.deepEqual(targets.map((target) => target.path), ["Z", "A", "B", "C"])
+	const entries = [occurrence("A.canvas", "old", "T.canvas"), occurrence("A.canvas", "new", "T.canvas"), occurrence("B.canvas", "b", "T.canvas")]
+	const groups = groupCanvasReferencesBySource(entries,
+		(entry) => getCanvasReferenceNavigationTime(history, "back", "T.canvas", entry.sourceCanvasPath, entry.sourceNodeId),
+		(path) => path === "B.canvas" ? 110 : 100)
+	assert.deepEqual(groups.map((group) => group.path), ["B.canvas", "A.canvas"])
+	assert.deepEqual(groups[1].entries.map((entry) => entry.sourceNodeId), ["new", "old"])
+})
+
+test("persisted navigation history keeps its most recent bounded set", () => {
+	const history = Object.fromEntries(Array.from({ length: 300 }, (_, index) => [`visit-${index}`, index + 1]))
+	const normalized = normalizeCanvasReferenceNavigationRecency(history)
+	assert.equal(Object.keys(normalized).length, 256)
+	assert.equal(normalized["visit-0"], undefined)
+	assert.equal(normalized["visit-299"], 300)
 })
 
 test("canvas relation graph aggregates repeated source-target occurrences while preserving entries", () => {

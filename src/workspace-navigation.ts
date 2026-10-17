@@ -24,11 +24,11 @@ type CanvasLike = {
 	zoomToSelection(): void;
 	zoomToBbox?(bbox: { minX: number; minY: number; maxX: number; maxY: number }): void;
 	panTo?(x: number, y: number): void;
-	requestFrame?(callback: () => void): void;
+	requestFrame?(): void;
 	getViewportBBox?(): { minX: number; minY: number; maxX: number; maxY: number };
 	selection?: Set<CanvasNodeLike>;
 };
-type CanvasViewLike = { getViewType(): string; canvas: CanvasLike };
+type CanvasViewLike = { getViewType(): string; canvas: CanvasLike; file?: { path: string } };
 
 const CANVAS_RENDER_TIMEOUT_MS = 6_000;
 const CANVAS_RENDER_POLL_MS = 50;
@@ -43,6 +43,12 @@ export function findOpenFileLeaf<T extends FileLeaf>(leaves: Iterable<T>, path: 
 		if (normalizeVaultPath(state.file) === targetPath) return leaf;
 	}
 	return undefined;
+}
+
+export function isCanvasLeafAtPath(app: App, leaf: WorkspaceLeaf | undefined, path: string): boolean {
+	if (!leaf || !app.workspace.getLeavesOfType("canvas").includes(leaf)) return false;
+	const view = leaf.view as unknown as CanvasViewLike | undefined;
+	return view?.getViewType() === "canvas" && view.file?.path === path;
 }
 
 /**
@@ -61,15 +67,12 @@ export async function openCanvasAndFocusNode(
 	// 📌 用结构守卫而非 instanceof TFile，保持「obsidian 仅类型导入」。
 	if (!isCanvasFile(file)) return false;
 
-	const result = await openOrFocusFileLeaf(app, file as TFile, preferOtherWindow, sourceWindowArg, replaceLeaf);
+	const result = await openCanvasAndWait(app, canvasPath, preferOtherWindow, sourceWindowArg, replaceLeaf);
 	if (!result) return false;
-
-	// 📌 从别的标签页/窗口切换过来时，canvas 需要先成为活动视图，未激活前 select 不生效。
-	await waitForActiveCanvas(app, canvasPath);
 
 	// 📌 等节点出现在 canvas.nodes 后，从 leaf 取「活」的 canvas 与节点，
 	// 避免捕获到被替换的视图/对象（新开标签页尤其容易踩到）。
-	const waitCanvas = await waitForCanvasNode(app, result.leaf, nodeId);
+	const waitCanvas = await waitForCanvasNode(app, result.leaf, canvasPath, nodeId);
 	if (!waitCanvas) return false;
 	const liveView = result.leaf.view as unknown as CanvasViewLike | undefined;
 	const liveCanvas = liveView?.getViewType() === "canvas" && liveView.canvas ? liveView.canvas : waitCanvas;
@@ -88,19 +91,28 @@ export async function openCanvasAndFocusNode(
 	// 📌 事件驱动：渲染帧循环里「缩放节点区域 + 选中」直至生效（新标签页需反复触发渲染）。
 	let selected = false;
 	for (let attempt = 0; attempt < 60 && !selected; attempt++) {
+		if (!isCurrentCanvas(app, result.leaf, canvasPath, liveCanvas)) return false;
 		if (bbox && typeof liveCanvas.zoomToBbox === "function") liveCanvas.zoomToBbox(bbox);
 		liveCanvas.selectOnly(node);
 		selected = (liveCanvas.selection?.size ?? 0) > 0;
-		if (!selected) await nextWindowFrame(app);
+		if (!selected) await nextWindowFrame(app, result.leaf);
 	}
-	if (!selected) return true;
+	if (!selected) return false;
+	// Native Canvas animation is suspended in hidden windows. Commit the pan through its API
+	// so the selected entry is centered now; the requested zoom can render when the window shows.
+	if (bbox && leafWindow(result.leaf)?.document?.hidden && typeof liveCanvas.panTo === "function") {
+		liveCanvas.panTo((bbox.minX + bbox.maxX) / 2, (bbox.minY + bbox.maxY) / 2);
+		return true;
+	}
 
 	// 📌 选中成功后，用 canvas 自身的渲染循环缩放聚焦整个视图到节点（F 键同款 zoomToSelection），
 	// 并用「视口宽度是否收窄到节点附近」校验；未聚焦则继续重试，直到生效。
 	for (let zoomAttempt = 0; zoomAttempt < 24; zoomAttempt++) {
-		await nextCanvasFrame(liveCanvas, app);
+		await nextWindowFrame(app, result.leaf, liveCanvas);
+		if (!isCurrentCanvas(app, result.leaf, canvasPath, liveCanvas)) return false;
 		liveCanvas.zoomToSelection();
-		await nextWindowFrame(app);
+		await nextWindowFrame(app, result.leaf);
+		if (!isCurrentCanvas(app, result.leaf, canvasPath, liveCanvas)) return false;
 		const viewport = liveCanvas.getViewportBBox?.();
 		const nodeBBox = typeof node.getBBox === "function" ? node.getBBox() : undefined;
 		if (!viewport || !nodeBBox) continue;
@@ -109,6 +121,22 @@ export async function openCanvasAndFocusNode(
 		if (viewWidth > 0 && viewWidth < nodeWidth * 8) return true;
 	}
 	return true;
+}
+
+/** 打开白板并等待其成为活动 Canvas；不要求目标节点存在。 */
+export async function openCanvasAndWait(
+	app: App,
+	canvasPath: string,
+	preferOtherWindow = false,
+	sourceWindowArg?: Window | null,
+	replaceLeaf?: WorkspaceLeaf,
+): Promise<LeafNavigationResult | undefined> {
+	const file = app.vault.getAbstractFileByPath(canvasPath);
+	if (!isCanvasFile(file)) return undefined;
+	const result = await openOrFocusFileLeaf(app, file as TFile, preferOtherWindow, sourceWindowArg, replaceLeaf);
+	if (!result) return undefined;
+	if (!await waitForActiveCanvas(app, result.leaf, canvasPath)) return undefined;
+	return result;
 }
 
 /** 用节点数据坐标（x/y/width/height）构造包围盒。 */
@@ -242,58 +270,55 @@ function createLeafInWindow(app: App, win: Window): WorkspaceLeaf | undefined {
 /**
  * 事件驱动：等目标 canvas 成为活动视图。
  * 判断活动 leaf 的视图是否为该 canvas（不能用 getActiveFile——仪表盘等无文件视图会返回旧文件，导致误判已激活）。
- * 用窗口动画帧循环等待（非固定 sleep、不依赖可能不触发的事件，保证不挂起）。
+ * 等待目标窗口动画帧；隐藏窗口的计时器回退保证等待有界。
  */
-async function waitForActiveCanvas(app: App, canvasPath: string): Promise<void> {
-	const win = app.workspace.containerEl.ownerDocument.defaultView ?? globalThis;
+async function waitForActiveCanvas(app: App, leaf: WorkspaceLeaf, canvasPath: string): Promise<boolean> {
 	const isActiveCanvas = () => {
-		const view = app.workspace.activeLeaf?.view as { getViewType(): string; file?: { path: string } } | null;
-		return Boolean(view && view.getViewType() === "canvas" && view.file?.path === canvasPath);
+		return app.workspace.activeLeaf === leaf && isCanvasLeafAtPath(app, leaf, canvasPath);
 	};
-	for (let i = 0; i < 120 && !isActiveCanvas(); i++) {
-		await new Promise<void>((resolve) => win.requestAnimationFrame(() => resolve()));
+	const deadline = Date.now() + CANVAS_RENDER_TIMEOUT_MS;
+	while (!isActiveCanvas() && Date.now() < deadline) {
+		await nextWindowFrame(app, leaf);
 	}
+	return isActiveCanvas();
 }
 
-async function waitForCanvasNode(app: App, leaf: WorkspaceLeaf, nodeId: string): Promise<CanvasLike | undefined> {
+async function waitForCanvasNode(app: App, leaf: WorkspaceLeaf, canvasPath: string, nodeId: string): Promise<CanvasLike | undefined> {
 	const deadline = Date.now() + CANVAS_RENDER_TIMEOUT_MS;
 	while (Date.now() < deadline) {
+		if (!app.workspace.getLeavesOfType("canvas").includes(leaf)) return undefined;
 		const view = leaf.view as unknown as CanvasViewLike | undefined;
-		if (view && view.getViewType() === "canvas") {
+		if (view?.getViewType() === "canvas" && view.file?.path === canvasPath) {
 			const canvas = view.canvas;
 			if (canvas && canvas.nodes.has(nodeId)) return canvas;
 		}
 		// 事件驱动：等下一渲染帧，而非固定 sleep。
-		await nextWindowFrame(app);
+		await nextWindowFrame(app, leaf);
 	}
 	return undefined;
 }
 
-/** 事件驱动：等工作区窗口的下一动画帧（requestAnimationFrame，可靠触发）。 */
-function nextWindowFrame(app: App): Promise<void> {
-	const win = app.workspace.containerEl.ownerDocument.defaultView ?? globalThis;
-	return new Promise((resolve) => {
-		if (typeof win.requestAnimationFrame === "function") {
-			win.requestAnimationFrame(() => resolve());
-		} else {
-			resolve();
-		}
-	});
+function isCurrentCanvas(app: App, leaf: WorkspaceLeaf, path: string, canvas: CanvasLike): boolean {
+	const view = leaf.view as unknown as CanvasViewLike | undefined;
+	return isCanvasLeafAtPath(app, leaf, path) && view?.canvas === canvas;
 }
 
-/** 事件驱动：等 canvas 自身渲染帧或窗口动画帧（竞速，任一先到即返回，保证不挂起）。 */
-function nextCanvasFrame(canvas: CanvasLike, app: App): Promise<void> {
+/** Hidden windows can suspend animation frames; the timer keeps navigation bounded. */
+function nextWindowFrame(app: App, leaf: WorkspaceLeaf, canvas?: CanvasLike): Promise<void> {
+	const win = leafWindow(leaf) ?? app.workspace.containerEl.ownerDocument.defaultView ?? globalThis;
 	return new Promise((resolve) => {
 		let done = false;
+		let animationFrame: number | undefined;
+		const timeout = globalThis.setTimeout(() => finish(), CANVAS_RENDER_POLL_MS);
 		const finish = () => {
 			if (done) return;
 			done = true;
+			globalThis.clearTimeout(timeout);
+			if (animationFrame !== undefined) win.cancelAnimationFrame(animationFrame);
 			resolve();
 		};
-		if (typeof canvas.requestFrame === "function") canvas.requestFrame(finish);
-		const win = app.workspace.containerEl.ownerDocument.defaultView ?? globalThis;
-		if (typeof win.requestAnimationFrame === "function") win.requestAnimationFrame(finish);
-		else finish();
+		if (typeof win.requestAnimationFrame === "function") animationFrame = win.requestAnimationFrame(finish);
+		if (!done && typeof canvas?.requestFrame === "function") canvas.requestFrame();
 	});
 }
 
