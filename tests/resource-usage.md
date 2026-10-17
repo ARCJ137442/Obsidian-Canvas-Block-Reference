@@ -498,3 +498,21 @@ ARC 构建产物已部署到 `life-panel` 插件目录，`main.js`、`manifest.j
 - 最终 83/83 测试与构建通过；`main.js`、`manifest.json`、`styles.css` 源/部署哈希一致。CLI 试验前后 27 张用户 Canvas 文件 SHA-256 全部相同。
 - 已恢复测试前导航历史、快捷键与活动页面，移除测试标签/DOM/运行态补丁；未启用移动仿真或 Android 模拟器。
 - 最终 `dev:errors` 存在宿主 `ResizeObserver` 警告，以及 `plugin:obsidian-quiet-outline` 的 `getHeaders` 两条异常；没有 ARC 栈帧，不将其报告为全局无错误。
+
+
+## 2026-10-18 v0.6.1 发布核验
+
+用户授权直接发布，并要求说明中标记“尚待人类实测验证”。`v0.6.1` 已按此标记为 GitHub 预发布，标签指向代码提交 `7e6fc0c6c157ce19678a7ccbc37a68576a3561dd`。
+
+- 主线 CI：`39060751651`，成功。
+- 标签 Release 工作流：`39060869150`，成功；再次安装依赖、运行测试和构建，打包上传。
+- 已下载四个发布资产；三个单文件的 SHA-256 与本地构建及 Life Panel 安装文件均一致。zip 根目录为 `obsidian-whiteboard-deduction-arc/`，内含的三个文件与单文件资产哈希一致。
+- 发布包 SHA-256：`7D8F33AD8299FD9AC9DE5512675E0ED5AEECF48911A5D75E107F52CF66C32DF2`。
+- 发布地址：https://github.com/ARCJ137442/Obsidian-Canvas-Block-Reference/releases/tag/v0.6.1
+
+| Label | 结果 | ms | 峰值工作集 | CPU | Samples |
+|---|---|---:|---:|---:|---:|
+| `release-0.6.1-runtime-verification` | 运行版本 0.6.1、启用与三命令正常；两窗口输入上下文导航调用 0，视图未变、无 Modal | 500.66 | 0 MiB | 0 s | 1 |
+| `release-0.6.1-errors` | 无 ARC 栈帧；宿主 ResizeObserver 和 Quiet Outline 已有异常仍在 | 558.66 | 0 MiB | 0 s | 1 |
+
+这两个短 CLI 进程的资源可能漏采。真实键鼠与手机/平板人工验收尚未完成；发布说明中的验收状态保持待验证。此文档补记不改变已发布标签及安装资产。
