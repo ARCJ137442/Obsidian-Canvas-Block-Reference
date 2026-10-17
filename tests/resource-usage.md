@@ -614,3 +614,21 @@ ARC 构建产物已部署到 `life-panel` 插件目录，`main.js`、`manifest.j
 - 测试设置、固定位置、活动页面及临时标签 / 补丁均已恢复；未启用移动仿真或 Android 模拟器。安装的 main.js / manifest.json / styles.css 与最终构建哈希一致。
 
 手机、平板真实手势和键鼠体感仍需人工验收；发布按“尚待人类核验”标记。验收流程见 agents/meta-canvas-interactions.md。
+
+## 2026-10-18 v0.6.2 发布核验
+
+- 标签 `v0.6.2` 指向 `4d6ea32b4fe98220e48b18139ab2714e411a2c98`。该提交的主线 CI `39065020417` 成功后才创建标签和 Release。
+- Release 工作流 `39065121655` 成功，在标签代码上重新安装依赖、运行测试和构建；四个资产均已上传。
+- Release 标题为“v0.6.2 · 元白板交互修复（尚待人类核验）”，`isPrerelease=true`。地址：https://github.com/ARCJ137442/Obsidian-Canvas-Block-Reference/releases/tag/v0.6.2
+- 已下载 zip 和三个单文件。zip 根目录为 `obsidian-whiteboard-deduction-arc/`，内部三文件与单文件、最终构建、Life Panel 部署文件 SHA-256 一致。单文件 main.js 的下载尚未完成时首次读取被文件锁拒绝；等待同一下载进程正常结束后已重新核验，没有把部分文件当成完整资产。
+- main.js：`E156281FDFFE64B2E37E8CDB1965C98339B926030D2E2A5BBB470ADF6E6779C9`
+- manifest.json：`FD14C344AA60D0AF2E10C06486A4402B31B6681109AFFE671FDE53407DE9F75A`
+- styles.css：`36F4D47F2087145540298CD4557D405D6BF279BABEA9E44B7857D744ABC6FBEB`
+- zip：`336F250A815885A126C9CD334B1B30B0B024438C91C33EB94A8FEA2B0CC5AEE4`
+
+| Label | 结果 | ms | 峰值工作集 | CPU | Samples |
+|---|---|---:|---:|---:|---:|
+| `meta062-release-runtime-verification` | 探针误把宿主 DeferredView 当已加载视图，后修正 | 308.21 | 0 MiB | 0 s | 1 |
+| `meta062-release-runtime-verification-v2` | 运行 0.6.2、启用、三命令正常；已加载视图 27 卡与 swipe 标记正确；另有一个宿主延迟加载标签；探针已清除 | 337.35 | 0 MiB | 0 s | 1 |
+
+两个短 CLI 进程资源可能漏采。此发布核验补记不移动标签、不改变发布资产；人类验收状态仍为待验证。
