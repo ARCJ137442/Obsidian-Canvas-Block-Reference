@@ -516,3 +516,101 @@ ARC 构建产物已部署到 `life-panel` 插件目录，`main.js`、`manifest.j
 | `release-0.6.1-errors` | 无 ARC 栈帧；宿主 ResizeObserver 和 Quiet Outline 已有异常仍在 | 558.66 | 0 MiB | 0 s | 1 |
 
 这两个短 CLI 进程的资源可能漏采。真实键鼠与手机/平板人工验收尚未完成；发布说明中的验收状态保持待验证。此文档补记不改变已发布标签及安装资产。
+
+## 2026-10-18 v0.6.1 正式化与 v0.6.2 交互调查
+
+用户已人工确认前进、回溯和最近跳转排序正常。现有 `v0.6.1` Release 已转为正式版；独立查询确认 `isPrerelease=false`，四个发布资产 ID / SHA-256 未变，标签未移动。人验范围不扩展到元白板缩放与触摸手势。
+
+以下调查均针对实际启用 ARC 的 Life Panel Vault。当前主 / 独立窗口的 Document 均处于隐藏状态；受控帧探针只用于复现时钟错误，不能视作真实手机触摸证据。当前宿主 bundle 的只读检查另外确认：移动手势入口沿 touchstart 目标祖先读取 `dataset.ignoreSwipe`，原生 Canvas 使用该标记阻止工作区 swipe 派发。
+
+| Label | 结果 | ms | 峰值工作集 | CPU | Samples |
+|---|---|---:|---:|---:|---:|
+| `meta062-native-inventory` | 0.6.1；主/独立窗口实际 Canvas 与元白板存在，当前均隐藏 | 338.44 | 0 MiB | 0 s | 1 |
+| `meta062-native-handlers` | 读取当前原生 Canvas 的 wheel、touch、pointer 实现及 swipe 标记 | 294.49 | 0 MiB | 0 s | 1 |
+| `meta062-host-gesture-contract` | 核实 Space 平移、zoomBy 与 owner Window，未改变宿主配置 | 341.91 | 0 MiB | 0 s | 1 |
+| `meta062-baseline-zoom-repro` | 复现连续 pinch 锚点漂移；两窗口时钟差约 2955ms | 290.77 | 0 MiB | 0 s | 1 |
+| `meta062-native-host-listeners` | 核实原生 wrapper 的 data-ignore-swipe=true | 295.40 | 0 MiB | 0 s | 1 |
+| `meta062-native-mobile-guards` | 受控首帧复现放大请求 1→0.28 错误；临时 rAF 补丁已还原 | 318.78 | 0 MiB | 0 s | 1 |
+| `meta062-test-window-setup` | 两窗口临时元白板各 27 卡；读取非零 viewport 偏移 | 813.41 | 4.8 MiB | 0 s | 1 |
+| `meta062-test-window-cleanup-baseline` | 关闭两临时标签、恢复活动页、删除探针；移动仿真未开启 | 746.84 | 0 MiB | 0 s | 1 |
+
+短 CLI 的 0 B / 0 s 可能漏采；未将其解释为零资源消耗。修复前锚点和时钟探针复现了问题，其进程退出成功不代表旧行为正确。
+
+## 2026-10-18 v0.6.2 实现与独立验收
+
+| Label | 结果 | ms | 峰值工作集 | CPU | Samples |
+|---|---|---:|---:|---:|---:|
+| `meta-interaction-tests`（Luna） | 首次 TS 编译失败，后已修复 | 1499.79 | 0 MiB | 0 s | 1 |
+| `meta-interaction-tests`（Luna） | 测试夹具失败，后已修复 | 1587.96 | 75.2 MiB | 0.297 s | 1 |
+| `meta-interaction-tests`（Luna） | 测试夹具失败，后已修复 | 1614.77 | 74.95 MiB | 0.266 s | 1 |
+| `meta-interaction-focused-tests`（Luna） | 假时钟 / 浮点夹具失败，后已修复 | 767.64 | 0 MiB | 0 s | 1 |
+| `meta-interaction-focused-tests`（Luna） | 假时钟 / 浮点夹具失败，后已修复 | 416.92 | 0 MiB | 0 s | 1 |
+| `meta-interaction-focused-tests`（Luna） | 假时钟 / 浮点夹具失败，后已修复 | 876.95 | 0 MiB | 0 s | 1 |
+| `meta-interaction-build`（Luna） | 首次 TS 类型错误，后已修复 | 1708.22 | 67.78 MiB | 0.312 s | 1 |
+| `meta-interaction-tests`（Luna） | 首个可验收版本 95/95 通过 | 1708.47 | 62.41 MiB | 0.156 s | 1 |
+| `meta-interaction-build`（Luna） | 首个可验收版本构建通过 | 1686.33 | 62.36 MiB | 0.219 s | 1 |
+| `meta-interaction-tests`（Luna） | 兼容点击修复后 96/96 通过 | 2262.55 | 17.83 MiB | 0.062 s | 2 |
+| `meta-interaction-build`（Luna） | 兼容点击修复后构建通过 | 1710.15 | 62.55 MiB | 0.234 s | 1 |
+| `meta062-initial-reload` | 首版 0.6.2 重载成功 | 4759.84 | 23.3 MiB | 0.062 s | 6 |
+| `meta062-runtime-setup` | 两窗口临时页各 27 卡片，移动仿真关闭 | 884.35 | 0 MiB | 0 s | 1 |
+| `meta062-wheel-dom` | 探针错误：把可见窗口动画当同步提交，后修正 | 330.13 | 0 MiB | 0 s | 1 |
+| `meta062-window-clock-dom` | 探针错误：WheelEvent 整数坐标未扣视口小数偏移，后修正 | 314.88 | 0 MiB | 0 s | 1 |
+| `meta062-pinch-dom` | 两窗口移动中心 / 第三指 / 单指续接通过，无位置写入 | 337.00 | 0 MiB | 0 s | 1 |
+| `meta062-wheel-probe-diagnosis` | 确认动画尚未完成与 WheelEvent 坐标取整 | 338.25 | 0 MiB | 0 s | 1 |
+| `meta062-wheel-dom-v2` | 探针受窗口失焦取消动画影响，后改受控时钟与可见性 | 1369.11 | 23.37 MiB | 0.047 s | 2 |
+| `meta062-window-clock-dom-v2` | 两窗口逐帧锚点与时钟通过，旧帧不覆盖平移 | 324.29 | 0 MiB | 0 s | 1 |
+| `meta062-wheel-boundary-diagnosis` | 确认 CLI 调用期间窗口可见性改变，探针需控制前提 | 325.67 | 0 MiB | 0 s | 1 |
+| `meta062-wheel-dom-v3` | 滚轮单位 / 优先级 / 累计 / 反向 / 边界锚点通过 | 1239.20 | 23.39 MiB | 0.031 s | 2 |
+| `meta062-node-dom` | 两次拖动起点、触摸短拖 / 长按、取消 / 丢捕获 / 失焦回滚通过 | 1041.64 | 23.39 MiB | 0.031 s | 2 |
+| `meta062-tap-and-doubletap-dom` | 发现实现缺陷：兼容 dblclick 导致重复打开；已修复 | 744.42 | 0 MiB | 0 s | 1 |
+| `meta062-negative-and-keyboard-dom` | 探针在非活动标签发指针，视口从零尺寸变为可见，需修正前提 | 4937.76 | 23.41 MiB | 0.047 s | 4 |
+| `meta062-background-refresh-dom` | 关系刷新保留视口和选中状态；空白点击取消 | 2222.53 | 23.34 MiB | 0.062 s | 2 |
+| `meta062-fallback-diagnosis` | 追踪视口外 pointer fallback 的变换 | 752.13 | 0 MiB | 0 s | 1 |
+| `meta062-fallback-coordinate-trace` | 活动标签下 pointer fallback 正常 | 583.67 | 0 MiB | 0 s | 1 |
+| `meta062-negative-and-keyboard-dom-v2` | 同一非活动标签探针前提错误，未判实现失败 | 761.29 | 0 MiB | 0 s | 1 |
+| `meta062-pre-redeploy-cleanup` | 关闭临时页并恢复设置、位置和活动页 | 868.76 | 0 MiB | 0 s | 1 |
+| `meta062-compat-fix-reload` | 兼容事件去重修复版重载成功 | 1051.98 | 0 MiB | 0 s | 1 |
+| `meta062-compat-fix-setup` | 重新建立两窗口验收页 | 1096.23 | 0 MiB | 0 s | 1 |
+| `meta062-tap-and-doubletap-dom-v2` | 触摸双击 / 兼容事件去重 / 新鼠标点击 / 辅助点击通过 | 387.68 | 0 MiB | 0 s | 1 |
+| `meta062-negative-and-keyboard-dom-v3` | 复现探针的零尺寸标签坐标问题 | 845.33 | 0 MiB | 0 s | 1 |
+| `meta062-negative-fallback-trace` | 定位探针开始于非活动、零尺寸标签，pointerdown 激活后尺寸变化 | 871.51 | 0 MiB | 0 s | 1 |
+| `meta062-negative-and-keyboard-dom-v4` | 探针未先激活标签，Space 焦点前提不成立 | 498.45 | 0 MiB | 0 s | 1 |
+| `meta062-keyboard-focus-trace` | 显式激活真实标签后，两窗口 Space 接管正确 | 963.07 | 0 MiB | 0 s | 1 |
+| `meta062-negative-and-keyboard-dom-v5` | 两窗口输入保护 / Space / Esc / touch 局部边界 / 外部 pointer 接续通过 | 990.81 | 0 MiB | 0 s | 1 |
+| `meta062-edge-dom` | 连边单击只选中，鼠标与触摸双击各仅一次动作 | 603.21 | 0 MiB | 0 s | 1 |
+| `meta062-listener-lifecycle-dom` | 探针计数预期写成 6，实际设计为 5 个 Window 监听；后修正 | 654.96 | 4.8 MiB | 0 s | 1 |
+| `meta062-fit-lifecycle-dom` | 输入取消初始适配；旧视口适配不回写 | 399.55 | 0 MiB | 0 s | 1 |
+| `meta062-listener-lifecycle-dom-v2` | 重绘三次仍为 Window 5 + Document 1；清理后 0 | 847.62 | 0 MiB | 0 s | 1 |
+| `meta062-async-close-dom` | 查询中关闭标签，异步完成不重建 DOM 或 controller | 342.70 | 0 MiB | 0 s | 1 |
+| `meta062-real-persistence-and-open` | 探针误将布局临时元数据纳入比较；x/y 保存实际正确，后修正 | 764.71 | 0 MiB | 0 s | 1 |
+| `meta062-runtime-cleanup` | 临时页 / 运行补丁释放，设置与位置恢复 | 765.28 | 0 MiB | 0 s | 1 |
+| `meta062-runtime-errors` | 无 ARC 栈；既有宿主/Quiet Outline 错误及探针构造无效 TouchEvent 的宿主错误 | 319.00 | 0 MiB | 0 s | 1 |
+| `meta062-final-check-setup` | 重建最终验收页，更新测试 helper 与点击 guard 接口 | 841.07 | 0 MiB | 0 s | 1 |
+| `meta062-persistence-diagnosis` | 验证保存的 x/y 与内存一致，布局元数据不持久化 | 321.68 | 0 MiB | 0 s | 1 |
+| `meta062-real-persistence-and-open-v2` | 真实位置落盘并恢复；双击同 leaf 打开正确原生 Canvas | 803.86 | 0 MiB | 0 s | 1 |
+| `meta062-final-runtime-cleanup` | 设置、固定位置和活动页恢复；探针删除 | 750.82 | 0 MiB | 0 s | 1 |
+| `meta062-owner-tests` | 主 Agent 独立全量 96/96 通过 | 1726.46 | 67.73 MiB | 0.281 s | 1 |
+| `meta062-owner-build` | 主 Agent 独立 TypeScript / 生产构建通过 | 1895.19 | 272.89 MiB | 3.328 s | 2 |
+| `meta062-final-reload` | 最终构建部署后重载成功 | 793.03 | 0 MiB | 0 s | 1 |
+| `meta062-final-setup` | 最终主 / 副窗口验收各 27 卡片，版本正确 | 807.26 | 0 MiB | 0 s | 1 |
+| `meta062-final-wheel` | 两窗口全部滚轮路径与边界通过，锚点误差约 5.68e-14 | 847.32 | 0 MiB | 0 s | 1 |
+| `meta062-final-clock` | 逐帧锚点和目标累加通过；跨窗口时钟不再导致比例复位 | 296.88 | 0 MiB | 0 s | 1 |
+| `meta062-final-pinch` | 最终双指 / 第三指 / 松开一指状态机通过 | 294.37 | 0 MiB | 0 s | 1 |
+| `meta062-final-taps` | 最终触摸 / 鼠标 / 辅助点击和事件去重通过 | 295.77 | 0 MiB | 0 s | 1 |
+| `meta062-final-negative` | 正确 TouchEvent；输入、键盘、局部触摸保护及外部接续通过 | 822.36 | 0 MiB | 0 s | 1 |
+| `meta062-final-cleanup` | 临时页、设置和固定位置恢复，无移动仿真 | 732.88 | 0 MiB | 0 s | 1 |
+| `meta062-final-errors` | 错误日志与前次完全相同，无新增、无 ARC 栈帧 | 303.97 | 0 MiB | 0 s | 1 |
+
+所有短命 CLI / 构建进程的内存与 CPU 可能漏采；表中失败包括实际实现缺陷与探针前提错误，二者分别注明，没有用进程 exit 0 掩盖 eval 的 Error。
+
+验证说明：
+
+- 96 项测试与生产构建通过。两窗口实际 DOM 的 Ctrl / Meta / Shift / 普通滚轮、单位归一、累计 / 反向、边界和逐帧锚点通过；窗口时钟原点相差约 2955ms，修复后不再产生固定比例回弹。
+- 移动中心 pinch、第三指、松开一指继续平移、触摸短拖 / 长按、取消 / 丢捕获 / 失焦、重复拖动起点、位置落盘、点击 / 双击 / 辅助技术点击均有具体状态或动作次数证据。合成输入不等于手机 / 平板真机验证。
+- 重绘三次仍仅保留 5 个 Window 监听与 1 个 Document 监听，清理后均为 0。后台刷新保留视口，初次适配可取消，查询中关闭不再重建 DOM。
+- 独立验收发现兼容 click / dblclick 重复打开的实际缺陷，已由 Luna 修复并新增策略回归；卡片与连边均复测通过。
+- 早期负路径探针误用普通 Event 模拟 touchstart / touchmove，宿主读取不存在的 touches.length 产生错误。最终改用 TouchEvent；原始错误日志保留，最终日志未新增。另有既有 ResizeObserver 与 Quiet Outline 异常；无 ARC 栈帧，不能描述为全局无错误。
+- 初始至全程末的 27 张用户 Canvas 中 26 张哈希相同；home.canvas 在首轮重载阶段（03:47:21）发生内容变化，未取得该次变化前的内容快照，不能归因，也未回滚。最终受控复测区间 27/27 哈希保持一致。没有据此宣称整个会话所有源文件均未变化。
+- 测试设置、固定位置、活动页面及临时标签 / 补丁均已恢复；未启用移动仿真或 Android 模拟器。安装的 main.js / manifest.json / styles.css 与最终构建哈希一致。
+
+手机、平板真实手势和键鼠体感仍需人工验收；发布按“尚待人类核验”标记。验收流程见 agents/meta-canvas-interactions.md。

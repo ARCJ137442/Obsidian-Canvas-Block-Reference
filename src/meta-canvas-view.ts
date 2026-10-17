@@ -4,6 +4,7 @@ import type { CanvasReferenceGraph, CanvasReferenceService } from "./canvas-refe
 import type { CanvasReferenceGraphEdge, CanvasReferenceOccurrence } from "./canvas-reference-model";
 import { canvasSnapshotAspectRatio, renderCanvasThumbnail } from "./canvas-thumbnail";
 import { showMetaCanvasLayoutMenu } from "./meta-canvas-layout-menu";
+import { CompatibilityClickGuard, MetaCanvasInteractionController, ViewportMotion, type CanvasPoint, type PointerTarget, type ViewportTransform } from "./meta-canvas-interaction";
 
 export const META_CANVAS_VIEW_TYPE = "arc-meta-canvas";
 const MIN_ZOOM = 0.28;
@@ -20,11 +21,7 @@ type MetaCanvasActions = {
 	openReferences(entries: readonly CanvasReferenceOccurrence[], fromPath: string, sourceLeaf: WorkspaceLeaf): void;
 };
 
-type PointerPoint = { x: number; y: number };
-type Gesture =
-	| { kind: "pan"; pointerId: number; start: PointerPoint; panX: number; panY: number }
-	| { kind: "node"; pointerId: number; path: string; start: PointerPoint; position: PointerPoint; moved: boolean }
-	| { kind: "pinch"; ids: [number, number]; distance: number; zoom: number; center: PointerPoint; panX: number; panY: number };
+type PointerPoint = CanvasPoint;
 
 export class MetaCanvasView extends ItemView {
 	private graph?: CanvasReferenceGraph;
@@ -46,15 +43,18 @@ export class MetaCanvasView extends ItemView {
 	private zoom = 0.7;
 	private panX = 32;
 	private panY = 32;
-	private gesture?: Gesture;
-	private readonly pointers = new Map<number, PointerPoint>();
-	private suppressNextClick = false;
+	private interaction?: MetaCanvasInteractionController;
+	private motion?: ViewportMotion;
+	private fitFrame?: number;
+	private windowInteractionCleanup?: () => void;
+	private readonly compatibilityClicks = new CompatibilityClickGuard<Element>();
 	private unsubscribe?: () => void;
 	private saveTimer?: number;
 	private readonly boardElements = new Map<string, HTMLButtonElement>();
 	private readonly edgeElements = new Map<string, SVGPathElement>();
-	private zoomAnimation?: number;
-	private zoomAnimationGeneration = 0;
+	private readonly edgeHitElements = new Map<string, SVGPathElement>();
+	private readonly pointerTargets = new Map<number, Exclude<PointerTarget, { kind: "excluded" }>>();
+	private lastTouchTap?: { key: string; point: PointerPoint; at: number };
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -81,14 +81,14 @@ export class MetaCanvasView extends ItemView {
 	}
 
 	async onClose(): Promise<void> {
-		this.stopZoomAnimation();
+		this.renderRevision += 1;
+		this.cleanupViewportInteraction();
 		if (this.saveTimer !== undefined) this.contentEl.ownerDocument.defaultView?.clearTimeout(this.saveTimer);
 		this.unsubscribe?.();
 		this.unsubscribe = undefined;
-		this.pointers.clear();
-		this.gesture = undefined;
 		this.boardElements.clear();
 		this.edgeElements.clear();
+		this.edgeHitElements.clear();
 		this.detailEl = undefined;
 		this.detailToggleEl = undefined;
 		this.contentEl.empty();
@@ -108,7 +108,7 @@ export class MetaCanvasView extends ItemView {
 		try {
 			const graph = await this.references.getGraph();
 			if (revision !== this.renderRevision) return;
-			const fitAfterRender = initial || !this.graph || graphTopologyKey(this.graph) !== graphTopologyKey(graph);
+			const fitAfterRender = initial || !this.graph;
 			this.graph = graph;
 			this.manualPositions = this.actions.getPositions();
 			this.renderView(fitAfterRender);
@@ -121,7 +121,7 @@ export class MetaCanvasView extends ItemView {
 	}
 
 	private renderView(initial: boolean): void {
-		this.stopZoomAnimation();
+		this.cleanupViewportInteraction();
 		this.contentEl.empty();
 		this.contentEl.addClass("arc-meta-canvas-view");
 		const graph = this.graph;
@@ -129,7 +129,7 @@ export class MetaCanvasView extends ItemView {
 		const root = this.contentEl.createDiv({ cls: "arc-meta-canvas-root" });
 		const viewport = root.createDiv({
 			cls: "arc-meta-canvas-viewport",
-			attr: { tabindex: "0", role: "application", "aria-label": "全局引用；中键或右键拖动平移，触摸拖动，双指缩放" },
+			attr: { tabindex: "0", role: "application", "aria-label": "全局引用；中键或右键拖动平移，触摸拖动，双指缩放", "data-ignore-swipe": "true" },
 		});
 		this.viewport = viewport;
 		if (graph.boards.length === 0) {
@@ -163,6 +163,7 @@ export class MetaCanvasView extends ItemView {
 		this.positions = layout.positions;
 		this.boardElements.clear();
 		this.edgeElements.clear();
+		this.edgeHitElements.clear();
 		const scene = viewport.createDiv({ cls: "arc-meta-canvas-scene" });
 		scene.style.width = `${layout.width}px`;
 		scene.style.height = `${layout.height}px`;
@@ -201,12 +202,13 @@ export class MetaCanvasView extends ItemView {
 		this.detailToggleEl.addEventListener("click", () => this.toggleDetail());
 		this.applyDetailState(root);
 		viewport.addEventListener("click", (event) => {
-			if ((event.target as Element).closest(".arc-meta-canvas-board-card, .arc-meta-canvas-edge-hit")) return;
+			const target = event.target as Element | null;
+			if (target?.closest?.(".arc-meta-canvas-board-card, .arc-meta-canvas-edge-hit")) return;
 			this.clearSelection();
 		});
 		this.applyTransform();
 		this.bindViewport(viewport);
-		if (initial) this.contentEl.ownerDocument.defaultView?.requestAnimationFrame(() => this.fitGraph());
+		if (initial) this.scheduleInitialFit(viewport);
 	}
 
 	private renderBoardCard(
@@ -240,18 +242,23 @@ export class MetaCanvasView extends ItemView {
 		setIcon(pin, "pin");
 		const preview = card.createDiv({ cls: "arc-meta-canvas-board-preview" });
 		renderCanvasThumbnail(preview, snapshot, { className: "arc-meta-canvas-thumbnail" });
-		card.addEventListener("click", () => {
-			if (this.suppressNextClick) {
-				this.suppressNextClick = false;
+		card.addEventListener("click", (event) => {
+			if (this.consumeCompatibilityClick(card, event.detail)) {
+				event.preventDefault();
+				event.stopPropagation();
 				return;
 			}
 			this.selectBoard(path);
 		});
 		card.addEventListener("dblclick", (event) => {
+			if (this.consumeCompatibilityClick(card, event.detail)) {
+				event.preventDefault();
+				event.stopPropagation();
+				return;
+			}
 			event.preventDefault();
 			void this.openBoard(path);
 		});
-		card.addEventListener("pointerdown", (event) => this.beginNodeGesture(event, path, position));
 		card.addEventListener("pointerenter", () => { if (this.hasHoverSupport()) this.setHoverPath(path); });
 		card.addEventListener("pointerleave", () => { if (this.hasHoverSupport()) this.setHoverPath(undefined); });
 		card.addEventListener("focus", () => this.setHoverPath(path));
@@ -406,9 +413,11 @@ export class MetaCanvasView extends ItemView {
 		const position = this.positions[path];
 		if (!viewport || !position) return;
 		const size = this.layout?.nodeSizes[path] ?? { width: META_CANVAS_NODE_WIDTH, height: META_CANVAS_NODE_HEIGHT };
-		this.panX = viewport.clientWidth / 2 - (position.x + size.width / 2) * this.zoom;
-		this.panY = viewport.clientHeight / 2 - (position.y + size.height / 2) * this.zoom;
-		this.applyTransform();
+		this.motion?.setImmediate({
+			zoom: this.zoom,
+			panX: viewport.clientWidth / 2 - (position.x + size.width / 2) * this.zoom,
+			panY: viewport.clientHeight / 2 - (position.y + size.height / 2) * this.zoom,
+		});
 	}
 
 	private toggleDetail(): void {
@@ -439,6 +448,7 @@ export class MetaCanvasView extends ItemView {
 		if (!svg) return;
 		while (svg.firstChild) svg.removeChild(svg.firstChild);
 		this.edgeElements.clear();
+		this.edgeHitElements.clear();
 		const ownerDocument = svg.ownerDocument;
 		const defs = ownerDocument.createElementNS("http://www.w3.org/2000/svg", "defs");
 		svg.appendChild(defs);
@@ -495,6 +505,7 @@ export class MetaCanvasView extends ItemView {
 			const hit = ownerDocument.createElementNS("http://www.w3.org/2000/svg", "path");
 			hit.setAttribute("d", geometry.path);
 			hit.setAttribute("class", "arc-meta-canvas-edge-hit");
+			hit.dataset.edgeKey = key;
 			hit.setAttribute("tabindex", "0");
 			hit.setAttribute("role", "button");
 			const occurrenceDetail = edge.occurrences.length > 1
@@ -506,10 +517,20 @@ export class MetaCanvasView extends ItemView {
 			hit.addEventListener("focus", () => this.setHoveredEdge(key));
 			hit.addEventListener("blur", () => this.setHoveredEdge(undefined));
 			hit.addEventListener("click", (event) => {
+				if (this.consumeCompatibilityClick(hit, event.detail)) {
+					event.preventDefault();
+					event.stopPropagation();
+					return;
+				}
 				event.stopPropagation();
 				this.selectEdge(key);
 			});
 			hit.addEventListener("dblclick", (event) => {
+				if (this.consumeCompatibilityClick(hit, event.detail)) {
+					event.preventDefault();
+					event.stopPropagation();
+					return;
+				}
 				event.preventDefault();
 				event.stopPropagation();
 				this.selectEdge(key);
@@ -522,6 +543,7 @@ export class MetaCanvasView extends ItemView {
 				this.actions.openReferences(edge.occurrences, edge.targetCanvasPath, this.leaf);
 			});
 			svg.appendChild(hit);
+			this.edgeHitElements.set(key, hit);
 			if (edge.occurrences.length > 1) {
 				const label = ownerDocument.createElementNS("http://www.w3.org/2000/svg", "text");
 				label.setAttribute("x", String(geometry.labelX));
@@ -536,127 +558,255 @@ export class MetaCanvasView extends ItemView {
 	}
 
 	private bindViewport(viewport: HTMLElement): void {
-		viewport.addEventListener("pointerdown", (event) => {
-			if ((event.target as Element).closest(".arc-meta-canvas-board-card, .arc-meta-canvas-edge-hit")) return;
-			const primaryPointer = event.pointerType === "touch" || event.pointerType === "pen" || event.button === 0;
-			if (primaryPointer) this.clearSelection();
-			if (event.pointerType === "mouse" && event.button === 0) return;
-			if (event.pointerType === "mouse" && event.button !== 1 && event.button !== 2) return;
-			event.preventDefault();
-			this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-			try { viewport.setPointerCapture(event.pointerId); } catch { /* Pointer capture is optional in embedded panes. */ }
-			if (this.pointers.size >= 2) this.beginPinch();
-			else this.gesture = { kind: "pan", pointerId: event.pointerId, start: { x: event.clientX, y: event.clientY }, panX: this.panX, panY: this.panY };
+		const win = viewport.ownerDocument.defaultView;
+		if (!win) return;
+		this.motion = new ViewportMotion({ zoom: this.zoom, panX: this.panX, panY: this.panY }, win, { minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM }, (transform) => {
+			this.zoom = transform.zoom;
+			this.panX = transform.panX;
+			this.panY = transform.panY;
+			this.applyTransform();
 		});
-		viewport.addEventListener("pointermove", (event) => this.moveGesture(event));
-		viewport.addEventListener("pointerup", (event) => this.endGesture(event));
-		viewport.addEventListener("pointercancel", (event) => this.endGesture(event));
-		viewport.addEventListener("wheel", (event) => {
-			event.preventDefault();
-			if (event.shiftKey) {
-				this.panX -= event.deltaY || event.deltaX;
-				this.applyTransform();
-			} else if (event.ctrlKey) {
-				const rect = viewport.getBoundingClientRect();
-				const factor = Math.exp(-event.deltaY * 0.0024);
-				this.animateZoomAt(this.zoom * factor, event.clientX - rect.left, event.clientY - rect.top);
-			} else {
-				this.panX -= event.deltaX;
-				this.panY -= event.deltaY;
-				this.applyTransform();
+		this.interaction = new MetaCanvasInteractionController({
+			getTransform: () => this.currentTransform(),
+			setTransform: (transform) => this.motion?.setImmediate(transform),
+			setNodePosition: (path, position, phase) => this.setNodeGesturePosition(path, position, phase),
+			onTap: (target, pointerType, point) => this.handlePointerTap(target, pointerType, point),
+			onInteraction: () => {
+				this.cancelScheduledFit();
+				this.motion?.cancel();
+			},
+			setTimeout: (callback, delay) => win.setTimeout(callback, delay),
+			clearTimeout: (handle) => win.clearTimeout(handle),
+		}, { minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM });
+
+		const pointerDown = (event: PointerEvent): void => {
+			const target = this.resolvePointerTarget(event.target);
+			if (event.pointerType === "mouse") {
+				this.lastTouchTap = undefined;
+				this.clearCompatibilityClickFor(target);
 			}
+			const consumed = this.interaction?.pointerDown({ id: event.pointerId, point: this.localPoint(viewport, event), pointerType: event.pointerType, button: event.button, target }) ?? false;
+			if (!consumed || target.kind === "excluded") return;
+			this.pointerTargets.set(event.pointerId, target);
+			if (event.pointerType === "touch" && this.interaction?.activeGestureKind === "pinch") this.lastTouchTap = undefined;
+			event.preventDefault();
+			try { viewport.setPointerCapture(event.pointerId); } catch { /* Pointer capture is optional in embedded panes. */ }
+		};
+		const pointerMove = (event: PointerEvent): void => {
+			if (!this.interaction?.pointerMove(event.pointerId, this.localPoint(viewport, event))) return;
+			if (event.pointerType === "touch" && this.interaction.shouldSuppressCompatibilityClick(event.pointerId)) this.lastTouchTap = undefined;
+			event.preventDefault();
+		};
+		const pointerUp = (event: PointerEvent): void => {
+			const target = this.pointerTargets.get(event.pointerId);
+			if (target && this.interaction?.shouldSuppressCompatibilityClick(event.pointerId)) this.suppressCompatibilityClickFor(target);
+			const consumed = this.interaction?.pointerUp(event.pointerId, this.localPoint(viewport, event)) ?? false;
+			this.pointerTargets.delete(event.pointerId);
+			if (consumed && event.pointerType === "touch") event.preventDefault();
+		};
+		const pointerCancel = (event: PointerEvent): void => {
+			this.pointerTargets.delete(event.pointerId);
+			this.lastTouchTap = undefined;
+			this.interaction?.pointerCancel(event.pointerId);
+		};
+		viewport.addEventListener("pointerdown", pointerDown);
+		viewport.addEventListener("pointermove", pointerMove);
+		viewport.addEventListener("pointerup", pointerUp);
+		viewport.addEventListener("pointercancel", pointerCancel);
+		viewport.addEventListener("lostpointercapture", pointerCancel);
+		viewport.addEventListener("touchstart", (event) => {
+			if (this.resolvePointerTarget(event.target).kind !== "excluded") event.preventDefault();
+		}, { passive: false });
+		viewport.addEventListener("touchmove", (event) => {
+			if (this.resolvePointerTarget(event.target).kind !== "excluded") event.preventDefault();
+		}, { passive: false });
+		viewport.addEventListener("wheel", (event) => {
+			if (this.resolvePointerTarget(event.target).kind === "excluded") return;
+			this.lastTouchTap = undefined;
+			const rect = viewport.getBoundingClientRect();
+			const consumed = this.interaction?.wheel({
+				deltaX: event.deltaX, deltaY: event.deltaY, deltaMode: event.deltaMode,
+				ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey,
+				point: { x: event.clientX - rect.left, y: event.clientY - rect.top },
+			}, (delta) => {
+				this.cancelScheduledFit();
+				const current = this.currentTransform();
+				this.motion?.setImmediate({ ...current, panX: current.panX - delta.x, panY: current.panY - delta.y });
+			}, (factor, point) => {
+				this.cancelScheduledFit();
+				this.motion?.zoomAt(factor, point, true);
+			}) ?? false;
+			if (consumed) event.preventDefault();
 		}, { passive: false });
 		viewport.addEventListener("contextmenu", (event) => event.preventDefault());
-	}
-
-	private beginNodeGesture(event: PointerEvent, path: string, position: PointerPoint): void {
-		if (event.button !== 0) return;
-		const viewport = this.viewport;
-		if (!viewport) return;
-		this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-		try { (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId); } catch { /* Pointer capture can be unavailable in embedded views. */ }
-		if (this.pointers.size >= 2) {
-			this.beginPinch();
-			return;
-		}
-		this.gesture = { kind: "node", pointerId: event.pointerId, path, start: { x: event.clientX, y: event.clientY }, position: { ...position }, moved: false };
-	}
-
-	private beginPinch(): void {
-		const pointers = [...this.pointers.entries()].slice(0, 2);
-		if (pointers.length !== 2) return;
-		const [first, second] = pointers.map(([, point]) => point) as [PointerPoint, PointerPoint];
-		const rect = this.viewport?.getBoundingClientRect();
-		const center = midpoint(first, second);
-		this.suppressNextClick = true;
-		this.gesture = {
-			kind: "pinch",
-			ids: [pointers[0]![0], pointers[1]![0]],
-			distance: distance(first, second),
-			zoom: this.zoom,
-			center: { x: center.x - (rect?.left ?? 0), y: center.y - (rect?.top ?? 0) },
-			panX: this.panX,
-			panY: this.panY,
+		viewport.addEventListener("keydown", (event) => {
+			if (event.key === " " && event.target === viewport && viewport.ownerDocument.activeElement === viewport && !event.repeat && !event.isComposing && !event.ctrlKey && !event.metaKey && !event.altKey) {
+				event.preventDefault();
+				this.interaction?.setSpaceHeld(true);
+			} else if (event.key === "Escape" && event.target === viewport && !event.isComposing) {
+				this.interaction?.cancel();
+				this.motion?.cancel();
+				this.cancelScheduledFit();
+				this.clearSelection();
+			}
+		});
+		const clearSpace = (event: KeyboardEvent): void => { if (event.key === " ") this.interaction?.setSpaceHeld(false); };
+		const cancelOnWindowChange = (finishZoom: boolean): void => {
+			this.cancelScheduledFit();
+			this.interaction?.cancel();
+			if (finishZoom) this.motion?.finishAnimation();
+			else this.motion?.cancel();
+			for (const id of this.pointerTargets.keys()) {
+				try { if (viewport.hasPointerCapture(id)) viewport.releasePointerCapture(id); } catch { /* Capture may already be lost. */ }
+			}
+			this.pointerTargets.clear();
+			this.compatibilityClicks.clearAll();
+			this.lastTouchTap = undefined;
+		};
+		const cancelOnBlur = (): void => cancelOnWindowChange(false);
+		const moveOutsideViewport = (event: PointerEvent): void => {
+			if (event.target && viewport.contains(event.target as Node)) return;
+			if (this.interaction?.hasPointer(event.pointerId)) pointerMove(event);
+		};
+		const upOutsideViewport = (event: PointerEvent): void => {
+			if (event.target && viewport.contains(event.target as Node)) return;
+			if (this.interaction?.hasPointer(event.pointerId)) pointerUp(event);
+		};
+		const cancelOutsideViewport = (event: PointerEvent): void => {
+			if (event.target && viewport.contains(event.target as Node)) return;
+			pointerCancel(event);
+		};
+		win.addEventListener("pointermove", moveOutsideViewport);
+		win.addEventListener("pointerup", upOutsideViewport);
+		win.addEventListener("pointercancel", cancelOutsideViewport);
+		const cancelWhenHidden = (): void => { if (win.document.hidden) cancelOnWindowChange(true); };
+		win.addEventListener("keyup", clearSpace);
+		win.addEventListener("blur", cancelOnBlur);
+		win.document.addEventListener("visibilitychange", cancelWhenHidden);
+		this.windowInteractionCleanup = () => {
+			win.removeEventListener("keyup", clearSpace);
+			win.removeEventListener("blur", cancelOnBlur);
+			win.removeEventListener("pointermove", moveOutsideViewport);
+			win.removeEventListener("pointerup", upOutsideViewport);
+			win.removeEventListener("pointercancel", cancelOutsideViewport);
+			win.document.removeEventListener("visibilitychange", cancelWhenHidden);
 		};
 	}
 
-	private moveGesture(event: PointerEvent): void {
-		if (!this.pointers.has(event.pointerId)) return;
-		this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-		const gesture = this.gesture;
-		if (!gesture) return;
-		if (gesture.kind === "pinch") {
-			const first = this.pointers.get(gesture.ids[0]);
-			const second = this.pointers.get(gesture.ids[1]);
-			if (!first || !second) return;
-			const nextDistance = distance(first, second);
-			const center = midpoint(first, second);
-			const viewportRect = this.viewport?.getBoundingClientRect();
-			const factor = nextDistance / Math.max(1, gesture.distance);
-			this.zoomAt(gesture.zoom * factor, center.x - (viewportRect?.left ?? 0), center.y - (viewportRect?.top ?? 0), gesture.center, gesture.panX, gesture.panY);
-			return;
+	private cleanupViewportInteraction(): void {
+		this.cancelScheduledFit();
+		for (const id of this.pointerTargets.keys()) {
+			try { if (this.viewport?.hasPointerCapture(id)) this.viewport.releasePointerCapture(id); } catch { /* Capture may already be lost. */ }
 		}
-		if (gesture.pointerId !== event.pointerId) return;
-		const dx = event.clientX - gesture.start.x;
-		const dy = event.clientY - gesture.start.y;
-		if (gesture.kind === "pan") {
-			this.panX = gesture.panX + dx;
-			this.panY = gesture.panY + dy;
-			this.applyTransform();
+		this.interaction?.destroy();
+		this.interaction = undefined;
+		this.motion?.cancel();
+		this.motion = undefined;
+		this.windowInteractionCleanup?.();
+		this.windowInteractionCleanup = undefined;
+		this.compatibilityClicks.clearAll();
+		this.pointerTargets.clear();
+		this.lastTouchTap = undefined;
+	}
+
+	private scheduleInitialFit(viewport: HTMLElement): void {
+		const win = viewport.ownerDocument.defaultView;
+		if (!win) return;
+		const revision = this.renderRevision;
+		this.fitFrame = win.requestAnimationFrame(() => {
+			this.fitFrame = undefined;
+			if (revision === this.renderRevision && this.viewport === viewport) this.fitGraph();
+		});
+	}
+
+	private cancelScheduledFit(): void {
+		if (this.fitFrame === undefined) return;
+		this.contentEl.ownerDocument.defaultView?.cancelAnimationFrame(this.fitFrame);
+		this.fitFrame = undefined;
+	}
+
+	private currentTransform(): ViewportTransform {
+		return { zoom: this.zoom, panX: this.panX, panY: this.panY };
+	}
+
+	private localPoint(viewport: HTMLElement, event: PointerEvent): PointerPoint {
+		const rect = viewport.getBoundingClientRect();
+		return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+	}
+
+	private resolvePointerTarget(target: EventTarget | null): PointerTarget {
+		const element = target as Element | null;
+		if (!element || typeof element.closest !== "function") return { kind: "blank" };
+		if (element.closest(".arc-meta-canvas-controls, .arc-meta-canvas-title, .arc-meta-canvas-detail, .arc-meta-canvas-detail-toggle, [contenteditable='true'], input, textarea, select")) return { kind: "excluded" };
+		const card = element.closest<HTMLElement>(".arc-meta-canvas-board-card");
+		if (card) {
+			const path = card.dataset.canvasPath;
+			const position = path ? this.positions[path] : undefined;
+			return path && position ? { kind: "board", path, position: { ...position } } : { kind: "excluded" };
+		}
+		const edge = element.closest<SVGPathElement>(".arc-meta-canvas-edge-hit");
+		if (edge?.dataset.edgeKey) return { kind: "edge", key: edge.dataset.edgeKey };
+		return { kind: "blank" };
+	}
+
+	private setNodeGesturePosition(path: string, position: PointerPoint, phase: "preview" | "commit" | "cancel"): void {
+		if (phase === "cancel") {
+			this.positions[path] = { ...position };
 		} else {
-			if (!gesture.moved && Math.hypot(dx, dy) > 5) {
-				gesture.moved = true;
-				this.suppressNextClick = true;
-			}
-			if (!gesture.moved) return;
-			const next = { x: Math.max(0, gesture.position.x + dx / this.zoom), y: Math.max(0, gesture.position.y + dy / this.zoom) };
-			this.positions[gesture.path] = next;
-			this.updateCardPositions();
-			if (this.graph) this.drawEdges(this.graph.edges, this.positions, this.layout?.edgeRoutes ?? {}, this.graph.boards);
+			this.positions[path] = resolveCanvasCardPosition(path, position, this.positions, this.layout?.nodeSizes);
+		}
+		if (phase === "commit") {
+			this.manualPositions[path] = { ...this.positions[path]! };
+			this.updateCardPinnedState(path, true);
+			void this.actions.setPositions(this.manualPositions).catch((error) => new Notice(`元白板位置保存失败：${error instanceof Error ? error.message : String(error)}`));
+		}
+		this.updateCardPositions();
+		if (this.graph) this.drawEdges(this.graph.edges, this.positions, this.layout?.edgeRoutes ?? {}, this.graph.boards);
+	}
+
+	private suppressCompatibilityClickFor(target: Exclude<PointerTarget, { kind: "excluded" }>): void {
+		const element = this.elementForPointerTarget(target);
+		if (element) {
+			const now = this.contentEl.ownerDocument.defaultView?.performance.now() ?? 0;
+			this.compatibilityClicks.suppress(element, now + 500, now);
 		}
 	}
 
-	private endGesture(event: PointerEvent): void {
-		const gesture = this.gesture;
-		this.pointers.delete(event.pointerId);
-		if (gesture?.kind === "node" && gesture.pointerId === event.pointerId && gesture.moved) {
-			this.suppressNextClick = true;
-			const position = this.positions[gesture.path];
-			if (position) {
-				const resolved = resolveCanvasCardPosition(gesture.path, position, this.positions, this.layout?.nodeSizes);
-				this.positions[gesture.path] = resolved;
-				this.manualPositions[gesture.path] = { ...resolved };
-				this.updateCardPinnedState(gesture.path, true);
-				this.updateCardPositions();
-				if (this.graph) this.drawEdges(this.graph.edges, this.positions, this.layout?.edgeRoutes ?? {}, this.graph.boards);
-			}
-			void this.actions.setPositions(this.manualPositions).catch((error) => new Notice(`元白板位置保存失败：${error instanceof Error ? error.message : String(error)}`));
+	private clearCompatibilityClickFor(target: PointerTarget): void {
+		const element = this.elementForPointerTarget(target);
+		if (element) this.compatibilityClicks.clear(element);
+	}
+
+	private elementForPointerTarget(target: PointerTarget): Element | undefined {
+		if (target.kind === "board") return this.boardElements.get(target.path);
+		if (target.kind === "edge") return this.edgeHitElements.get(target.key);
+		return undefined;
+	}
+
+	private handlePointerTap(target: Exclude<PointerTarget, { kind: "excluded" }>, pointerType: string, point: PointerPoint): void {
+		if (target.kind === "board") this.selectBoard(target.path);
+		else if (target.kind === "edge") this.selectEdge(target.key);
+		else this.clearSelection();
+		if (pointerType !== "touch") return;
+		this.suppressCompatibilityClickFor(target);
+
+		const win = this.contentEl.ownerDocument.defaultView;
+		const now = win?.performance.now() ?? 0;
+		const key = target.kind === "board" ? `board:${target.path}` : target.kind === "edge" ? `edge:${target.key}` : "blank";
+		const previous = this.lastTouchTap;
+		const isDoubleTap = previous?.key === key && now - previous.at <= 350 && Math.hypot(point.x - previous.point.x, point.y - previous.point.y) <= 24;
+		this.lastTouchTap = isDoubleTap ? undefined : { key, point: { ...point }, at: now };
+		if (!isDoubleTap) return;
+		this.lastTouchTap = undefined;
+		if (target.kind === "board") void this.openBoard(target.path);
+		else if (target.kind === "edge") {
+			const edge = this.graph?.edges.find((candidate) => canvasReferenceEdgeKey(candidate.sourceCanvasPath, candidate.targetCanvasPath) === target.key);
+			if (edge) this.actions.openReferences(edge.occurrences, edge.targetCanvasPath, this.leaf);
 		}
-		if (this.pointers.size >= 2) this.beginPinch();
-		else if (this.pointers.size === 1) {
-			const [pointerId, point] = [...this.pointers.entries()][0]!;
-			this.gesture = { kind: "pan", pointerId, start: point, panX: this.panX, panY: this.panY };
-		} else this.gesture = undefined;
+	}
+
+	private consumeCompatibilityClick(element: Element, detail: number): boolean {
+		return this.compatibilityClicks.consume(element, this.contentEl.ownerDocument.defaultView?.performance.now() ?? 0, detail);
 	}
 
 	private updateCardPositions(): void {
@@ -686,68 +836,25 @@ export class MetaCanvasView extends ItemView {
 	}
 
 	private setZoom(value: number): void {
-		this.stopZoomAnimation();
 		const viewport = this.viewport;
-		this.zoomAt(value, (viewport?.clientWidth ?? 0) / 2, (viewport?.clientHeight ?? 0) / 2);
-	}
-
-	private animateZoomAt(value: number, x: number, y: number): void {
-		const win = this.contentEl.ownerDocument.defaultView;
-		if (!win) {
-			this.zoomAt(value, x, y);
-			return;
-		}
-		this.stopZoomAnimation();
-		const generation = this.zoomAnimationGeneration;
-		const startZoom = this.zoom;
-		const targetZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value));
-		const started = performance.now();
-		const duration = 110;
-		const tick = (now: number): void => {
-			if (generation !== this.zoomAnimationGeneration) return;
-			const progress = Math.min(1, (now - started) / duration);
-			const eased = 1 - Math.pow(1 - progress, 3);
-			this.zoomAt(startZoom + (targetZoom - startZoom) * eased, x, y);
-			if (progress < 1) this.zoomAnimation = win.requestAnimationFrame(tick);
-			else this.zoomAnimation = undefined;
-		};
-		this.zoomAnimation = win.requestAnimationFrame(tick);
-	}
-
-	private stopZoomAnimation(): void {
-		this.zoomAnimationGeneration += 1;
-		if (this.zoomAnimation === undefined) return;
-		this.contentEl.ownerDocument.defaultView?.cancelAnimationFrame(this.zoomAnimation);
-		this.zoomAnimation = undefined;
-	}
-
-	private zoomAt(value: number, x: number, y: number, previousCenter?: PointerPoint, previousPanX?: number, previousPanY?: number): void {
-		const next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value));
-		const anchor = previousCenter ?? { x, y };
-		const oldPanX = previousPanX ?? this.panX;
-		const oldPanY = previousPanY ?? this.panY;
-		const worldX = (anchor.x - oldPanX) / this.zoom;
-		const worldY = (anchor.y - oldPanY) / this.zoom;
-		this.zoom = next;
-		this.panX = x - worldX * next;
-		this.panY = y - worldY * next;
-		this.applyTransform();
+		this.cancelScheduledFit();
+		this.motion?.zoomTo(value, { x: (viewport?.clientWidth ?? 0) / 2, y: (viewport?.clientHeight ?? 0) / 2 }, false);
 	}
 
 	private fitGraph(): void {
-		this.stopZoomAnimation();
+		this.cancelScheduledFit();
+		this.motion?.cancel();
 		const viewport = this.viewport;
 		const scene = this.scene;
 		if (!viewport || !scene) return;
 		const width = Math.max(1, scene.clientWidth);
 		const height = Math.max(1, scene.clientHeight);
-		this.zoom = Math.max(MIN_ZOOM, Math.min(1.05, (viewport.clientWidth - 48) / width, (viewport.clientHeight - 48) / height));
-		this.panX = (viewport.clientWidth - width * this.zoom) / 2;
-		this.panY = (viewport.clientHeight - height * this.zoom) / 2;
-		this.applyTransform();
+		const zoom = Math.max(MIN_ZOOM, Math.min(1.05, (viewport.clientWidth - 48) / width, (viewport.clientHeight - 48) / height));
+		this.motion?.setImmediate({ zoom, panX: (viewport.clientWidth - width * zoom) / 2, panY: (viewport.clientHeight - height * zoom) / 2 });
 	}
 
 	private renderError(error: unknown): void {
+		this.cleanupViewportInteraction();
 		this.contentEl.empty();
 		this.contentEl.addClass("arc-meta-canvas-view");
 		const message = error instanceof Error ? error.message : String(error);
@@ -927,14 +1034,6 @@ function basename(path: string): string {
 
 function distance(a: PointerPoint, b: PointerPoint): number {
 	return Math.hypot(b.x - a.x, b.y - a.y);
-}
-
-function midpoint(a: PointerPoint, b: PointerPoint): PointerPoint {
-	return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-}
-
-function graphTopologyKey(graph: CanvasReferenceGraph): string {
-	return `${graph.boards.map((board) => board.path).join("\0")}\u0001${graph.edges.map((edge) => `${edge.sourceCanvasPath}\0${edge.targetCanvasPath}\0${edge.occurrences.length}`).join("\u0001")}`;
 }
 
 function countReferenceKinds(edge: CanvasReferenceGraphEdge): { fileNode: number; textLink: number } {

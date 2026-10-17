@@ -9,6 +9,7 @@
 | 改白板按键或排查误触发 | [`keyboard-safety.md`](keyboard-safety.md) | 正常路径/负路径、窗口隔离、修饰键、编辑态和连续按键 |
 | 改 Canvas 数据或链接能力 | [`architecture.md`](architecture.md) | 事件上下文、mutation transaction、跨平台读取和 monkey patch 边界 |
 | 写测试或做 CLI 实测 | [`testing-and-runtime.md`](testing-and-runtime.md) | 资源采样、测试矩阵、探针、错误归因和验收证据 |
+| 改元白板缩放或触摸手势 | [`meta-canvas-interactions.md`](meta-canvas-interactions.md) | 原生 Canvas 参照、锚点、窗口时钟、宿主手势隔离及人工验收 |
 | 改版本、插件 ID 或发布包 | [`release-migration.md`](release-migration.md) | data.json、热键迁移、旧目录回滚和 Release 资产 |
 | 安排下一轮迭代 | [`roadmap.md`](roadmap.md) | 已验证基线、优先级、验收条件和明确不做事项 |
 

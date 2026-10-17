@@ -6,7 +6,7 @@
 
 - 显示名：`Obsidian白板推演-ARC.ver`
 - ID：`obsidian-whiteboard-deduction-arc`
-- 当前发布线：`0.6.x`；`0.6.1` 以预发布交付，说明中标记“尚待人类实测验证”
+- 当前发布线：`0.6.x`；`0.6.1` 的前进、回溯和最近跳转排序已通过人类实测，已转为正式版；`0.6.2` 元白板交互修复按“尚待人类核验”交付，不能沿用前一版本的人验范围
 - 旧 ID：`canvas-block-reference`
 
 插件 ID 是 Obsidian 的身份，不是 Canvas 文件格式。改变 ID 时必须同时检查 manifest、发布压缩包目录、Vault 启用列表、命令热键和插件 data。

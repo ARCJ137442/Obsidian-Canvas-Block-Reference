@@ -69,6 +69,15 @@ ID 修改必须拦截空值与重复值，并在失败时给出 Notice；改 ID 
 - `workspace-navigation.ts` 等待目标 leaf 所属窗口的帧，并以 50ms 计时器处理隐藏窗口暂停帧的情况。隐藏窗口通过原生 `panTo` 立即提交节点中心，缩放在窗口可见后继续原生渲染。未能选中节点返回失败，不能据此记录成功跳转。
 - Canvas 的 `requestFrame()` 仅请求渲染，不接受回调；等待渲染使用目标 Window 的 `requestAnimationFrame` 与计时器回退，不能把函数传入 Canvas 的时间戳参数。
 
+## 元白板输入与视口（0.6.2）
+
+- `meta-canvas-interaction.ts` 提供纯手势状态机、世界坐标缩放锚点、滚轮单位归一、目标累计动画和有界兼容点击抑制；`meta-canvas-view.ts` 负责真实 DOM、当前窗口计时器和节点位置持久化回调。
+- 普通触摸拖动不移动节点；长按卡片后拖动才进入节点事务。第二指接管时撤回未提交节点移动，指针取消 / 失焦 / 关闭同样回滚。节点起点来自当前 `positions[path]`，不复用渲染时的旧闭包。
+- pointer capture 失败时，所在 Window 只接续该视口已经拥有的 pointer ID；重绘和关闭移除这些监听。按键仍限制在视口焦点，不回退到全局 activeLeaf。
+- 动画使用目标 Window 的 performance / rAF 时钟；连续滚轮累计目标，隐藏窗口直接提交，平移或新手势取消旧动画。后台关系更新保留用户视口；首次适配可被用户输入取消。
+- `data-ignore-swipe` 兼容当前宿主的工作区手势边界；局部非 passive touch 处理与 `touch-action` / `overscroll-behavior` 共同约束绘图区，输入控件、详情和其它页面不接管。
+- 触摸手动双 tap 与浏览器合成 click / dblclick 去重；新鼠标 pointerdown 清除对应抑制，辅助技术 `detail=0` 点击保留。详见 [`meta-canvas-interactions.md`](meta-canvas-interactions.md)。
+
 ## Monkey patch 边界
 
 `WorkspaceLeaf.openFile` 与内置 Suggest 的 patch 属于 Obsidian 内部 API 适配层。当前版本验证有效时可以保留，但每次 Obsidian 升级或错误出现时应单独验证 patch 入口。不要为了“看起来更现代”在没有替代行为和回归证据时随意移除或重写。

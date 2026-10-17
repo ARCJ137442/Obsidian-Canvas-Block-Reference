@@ -28,6 +28,7 @@
 	overflow: hidden;
 	position: absolute;
 	touch-action: none;
+	overscroll-behavior: contain;
 	user-select: none;
 }
 
