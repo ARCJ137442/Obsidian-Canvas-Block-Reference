@@ -23,6 +23,12 @@ type CanvasLike = {
 	selectOnly(node: CanvasNodeLike): void;
 	zoomToSelection(): void;
 	zoomToBbox?(bbox: { minX: number; minY: number; maxX: number; maxY: number }): void;
+	zoomToRealBbox?(bbox: { minX: number; minY: number; maxX: number; maxY: number }): void;
+	setViewport?(x: number, y: number, zoom: number): void;
+	tx?: number;
+	ty?: number;
+	tZoom?: number;
+	zoom?: number;
 	panTo?(x: number, y: number): void;
 	requestFrame?(): void;
 	getViewportBBox?(): { minX: number; minY: number; maxX: number; maxY: number };
@@ -98,29 +104,48 @@ export async function openCanvasAndFocusNode(
 		if (!selected) await nextWindowFrame(app, result.leaf);
 	}
 	if (!selected) return false;
+	if (bbox && commitFocusedViewport(liveCanvas, bbox) && viewportFocusesNode(liveCanvas, bbox)) return true;
 	// Native Canvas animation is suspended in hidden windows. Commit the pan through its API
 	// so the selected entry is centered now; the requested zoom can render when the window shows.
 	if (bbox && leafWindow(result.leaf)?.document?.hidden && typeof liveCanvas.panTo === "function") {
 		liveCanvas.panTo((bbox.minX + bbox.maxX) / 2, (bbox.minY + bbox.maxY) / 2);
-		return true;
+		return viewportFocusesNode(liveCanvas, bbox);
 	}
 
 	// 📌 选中成功后，用 canvas 自身的渲染循环缩放聚焦整个视图到节点（F 键同款 zoomToSelection），
-	// 并用「视口宽度是否收窄到节点附近」校验；未聚焦则继续重试，直到生效。
+	// 校验节点中心和视口尺度；选中或缩放变小本身不等于完成聚焦。
 	for (let zoomAttempt = 0; zoomAttempt < 24; zoomAttempt++) {
 		await nextWindowFrame(app, result.leaf, liveCanvas);
 		if (!isCurrentCanvas(app, result.leaf, canvasPath, liveCanvas)) return false;
 		liveCanvas.zoomToSelection();
+		if (bbox) commitFocusedViewport(liveCanvas, bbox);
 		await nextWindowFrame(app, result.leaf);
 		if (!isCurrentCanvas(app, result.leaf, canvasPath, liveCanvas)) return false;
-		const viewport = liveCanvas.getViewportBBox?.();
-		const nodeBBox = typeof node.getBBox === "function" ? node.getBBox() : undefined;
-		if (!viewport || !nodeBBox) continue;
-		const viewWidth = viewport.maxX - viewport.minX;
-		const nodeWidth = nodeBBox.maxX - nodeBBox.minX;
-		if (viewWidth > 0 && viewWidth < nodeWidth * 8) return true;
+		if (bbox && viewportFocusesNode(liveCanvas, bbox)) return true;
 	}
+	return false;
+}
+
+/** Commit Canvas's animation target through its API, as verified by Life Panel's focus adapter. */
+function commitFocusedViewport(canvas: CanvasLike, bbox: NonNullable<ReturnType<typeof rotationNodeBBox>>): boolean {
+	if (!canvas.zoomToRealBbox || !canvas.setViewport) return false;
+	canvas.zoomToRealBbox(bbox);
+	const x = canvas.tx, y = canvas.ty, zoom = canvas.tZoom ?? canvas.zoom;
+	if (typeof x !== "number" || typeof y !== "number" || typeof zoom !== "number" || ![x, y, zoom].every(Number.isFinite)) return false;
+	canvas.setViewport(x, y, zoom);
+	canvas.requestFrame?.();
 	return true;
+}
+
+function viewportFocusesNode(canvas: CanvasLike, bbox: NonNullable<ReturnType<typeof rotationNodeBBox>>): boolean {
+	const viewport = canvas.getViewportBBox?.();
+	if (!viewport || !Object.values(viewport).every(Number.isFinite)) return false;
+	const width = bbox.maxX - bbox.minX, height = bbox.maxY - bbox.minY;
+	const viewWidth = viewport.maxX - viewport.minX, viewHeight = viewport.maxY - viewport.minY;
+	if (width <= 0 || height <= 0 || viewWidth <= 0 || viewHeight <= 0) return false;
+	return Math.abs((viewport.minX + viewport.maxX - bbox.minX - bbox.maxX) / 2) <= Math.max(1, width / 4)
+		&& Math.abs((viewport.minY + viewport.maxY - bbox.minY - bbox.maxY) / 2) <= Math.max(1, height / 4)
+		&& Math.min(viewWidth / width, viewHeight / height) < 8;
 }
 
 /** 打开白板并等待其成为活动 Canvas；不要求目标节点存在。 */
@@ -290,7 +315,8 @@ async function waitForCanvasNode(app: App, leaf: WorkspaceLeaf, canvasPath: stri
 		const view = leaf.view as unknown as CanvasViewLike | undefined;
 		if (view?.getViewType() === "canvas" && view.file?.path === canvasPath) {
 			const canvas = view.canvas;
-			if (canvas && canvas.nodes.has(nodeId)) return canvas;
+			const viewport = canvas?.getViewportBBox?.();
+			if (canvas && canvas.nodes.has(nodeId) && (!viewport || viewport.maxX > viewport.minX && viewport.maxY > viewport.minY)) return canvas;
 		}
 		// 事件驱动：等下一渲染帧，而非固定 sleep。
 		await nextWindowFrame(app, leaf);

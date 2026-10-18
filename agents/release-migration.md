@@ -6,7 +6,7 @@
 
 - 显示名：`Obsidian白板推演-ARC.ver`
 - ID：`obsidian-whiteboard-deduction-arc`
-- 当前发布线：`0.6.x`；`0.6.3` 正式 fix。用户已实测确认节点双击和缩放正常；自动化另覆盖主窗口与独立窗口的浏览器真实鼠标事件，不扩展为全部设备手势均已验收
+- 当前发布线：`0.6.x`；`0.6.4` 修复共享节点聚焦的视口就绪与居中校验。[发布记录](release-v0.6.4.md)列出 CLI 与待人工范围。`0.6.3` 的节点双击、缩放已由用户实测确认，该人验不扩大到本轮新增聚焦行为
 - 旧 ID：`canvas-block-reference`
 
 插件 ID 是 Obsidian 的身份，不是 Canvas 文件格式。改变 ID 时必须同时检查 manifest、发布压缩包目录、Vault 启用列表、命令热键和插件 data。

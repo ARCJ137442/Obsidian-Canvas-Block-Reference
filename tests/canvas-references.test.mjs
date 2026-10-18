@@ -71,6 +71,30 @@ test("hidden Canvas navigation commits the selected node center without waiting 
 	assert.deepEqual(center, { x: 50, y: 50 })
 })
 
+test("Canvas focus does not mistake a selected but off-center node for success", async () => {
+	const fixture = focusFixture()
+	fixture.canvas.getViewportBBox = () => ({ minX: 800, minY: 800, maxX: 1100, maxY: 1100 })
+	assert.equal(await openCanvasAndFocusNode(fixture.app, "Target.canvas", "entry", false, fixture.win, fixture.leaf), false)
+})
+
+test("Canvas focus commits native viewport targets when the animation has not settled", async () => {
+	const fixture = focusFixture(true)
+	let viewport = { minX: 800, minY: 800, maxX: 1100, maxY: 1100 }
+	fixture.canvas.getViewportBBox = () => viewport
+	fixture.canvas.zoomToRealBbox = () => { fixture.canvas.tx = 50; fixture.canvas.ty = 50; fixture.canvas.tZoom = 1 }
+	fixture.canvas.setViewport = (x, y, zoom) => { assert.deepEqual([x, y, zoom], [50, 50, 1]); viewport = { minX: -100, minY: -100, maxX: 200, maxY: 200 } }
+	assert.equal(await openCanvasAndFocusNode(fixture.app, "Target.canvas", "entry", false, fixture.win, fixture.leaf), true)
+})
+
+test("Canvas focus waits for measurable viewport geometry before zooming", async () => {
+	const fixture = focusFixture()
+	let measured = false
+	fixture.canvas.getViewportBBox = () => measured ? { minX: -100, minY: -100, maxX: 200, maxY: 200 } : { minX: 0, minY: 0, maxX: 0, maxY: 0 }
+	fixture.win.requestAnimationFrame = (callback) => { queueMicrotask(() => { measured = true; callback(0) }); return 1 }
+	fixture.canvas.zoomToBbox = () => assert.equal(measured, true)
+	assert.equal(await openCanvasAndFocusNode(fixture.app, "Target.canvas", "entry", false, fixture.win, fixture.leaf), true)
+})
+
 test("Canvas focus stops when its owning leaf closes during a frame wait", async () => {
 	const fixture = focusFixture()
 	fixture.win.requestAnimationFrame = (callback) => {

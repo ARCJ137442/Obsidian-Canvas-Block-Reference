@@ -44,6 +44,8 @@ ID 修改必须拦截空值与重复值，并在失败时给出 Notice；改 ID 
 
 ## 读取与跨平台
 
+- 共享 `focusNode` 先等目标 Canvas、节点和可测量视口，再通过 Canvas 自身 API 提交视口动画目标，核对中心与尺度；未确认聚焦返回 false。Life Series / Life Panel 只调用该能力，不把“已选中”推断为“已居中”。
+
 - 已打开 Canvas：优先从当前 Canvas view 的内存节点读取，避免把未保存内容误判为不存在。
 - 未打开 Canvas：通过 Obsidian Vault API 读取，并使用受控的 mtime 缓存；JSON 解析必须捕获异常并安全降级。
 - 运行时不使用 Node `fs`、`crypto` 或路径库；UUID 使用 Web Crypto，必要时使用浏览器兼容 fallback。

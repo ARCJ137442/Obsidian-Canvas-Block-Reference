@@ -687,3 +687,35 @@ ARC 构建产物已部署到 `life-panel` 插件目录，`main.js`、`manifest.j
 - zip：`A7BE6AEE5A668850A0B754555D3EB5A07009092ADAAF0EB9271D6392857299E0`
 
 此文档补记不移动标签、不修改发行资产。
+
+## 2026-10-18 · 0.6.4 节点聚焦与生活记录联合验证
+
+下表均由 `scripts/measure-command.ps1` 实测；工作集单位为 MiB，CPU 单位秒。0 值与单次采样可能漏采，不表示零开销。时间为 UTC。
+
+| 开始时间 | 标签／命令 | 退出码／结果 | 墙钟 ms | 峰值 MiB | CPU s | 采样 |
+|---|---|---|---:|---:|---:|---:|
+| 05:27:51 | arc-0.6.4-focus-tests / npm test | 0，98 通过 | 1892.60 | 0 | 0 | 1 |
+| 05:28:13 | arc-0.6.4-build / npm run build | 0 | 2717.49 | 68.34 | .281 | 2 |
+| 05:28:25 | arc-0.6.4-reload-life-series | 0 | 398.53 | 0 | 0 | 1 |
+| 05:28:26 | arc-0.6.4-cross-window-cli | 1，零尺寸视口 | 4504.77 | 50.99 | .125 | 4 |
+| 05:28:57 | arc-0.6.4-inspect-native-viewport | 0，只读 API | 344.60 | 0 | 0 | 1 |
+| 05:29:45 | arc-0.6.4-build-ready-viewport | 0 | 1897.39 | 0 | 0 | 1 |
+| 05:29:47 | arc-0.6.4-reload-ready-viewport | 0 | 853.99 | 0 | 0 | 1 |
+| 05:29:48 | arc-0.6.4-window-focus-probe | 1，探针关闭最后标签导致窗口关闭 | 5271.61 | 51.18 | .078 | 4 |
+| 05:30:41 | arc-0.6.4-window-focus-anchor-probe | 1，辅助窗口标签遗漏 | 5121.85 | 56.39 | .125 | 4 |
+| 05:31:08 | arc-window-activation-api-inspection | 0，只读 API | 303.50 | 0 | 0 | 1 |
+| 05:31:22 | arc-focus-leaf-api-inspection | 0，只读 API | 375.28 | 0 | 0 | 1 |
+| 05:31:48 | arc-window-tab-selection-probe | 1，定位遗漏辅助窗口标签 | 4783.94 | 56.39 | .078 | 4 |
+| 05:32:28 | arc-window-tab-union-probe | 1，导航通过，探针未等弹窗数据 | 6602.63 | 56.36 | .172 | 5 |
+| 05:33:01 | arc-life-inspiration-window-final-probe | 1，弹窗异步等待校正 | 7431.17 | 56.36 | .125 | 5 |
+| 05:33:26 | arc-life-inspiration-window-acceptance | 0，全部联合导航路径通过 | 9588.80 | 53.36 | .156 | 8 |
+| 05:34:10 | arc-0.6.4-final-tests / npm test | 0，99 通过 | 1739.91 | 0 | 0 | 1 |
+| 05:34:58 | life-0.18.3-crud-regression | 0，真实 Canvas CRUD 通过 | 5096.50 | 51.40 | .141 | 5 |
+| 05:35:03 | arc-0.6.4-error-audit | 0，读取日志 | 313.76 | 0 | 0 | 1 |
+| 05:35:17 | arc-0.6.4-error-stack-attribution | 0，归因日志 | 317.90 | 0 | 0 | 1 |
+
+联合探针命令：`node H:/A137442/Develop/Obsidian/obsidian-life-series-tools/scripts/verify-inspiration-windows.cjs H:/A137442/Document/life-series`；CRUD 使用同目录 `verify-inspiration-crud.cjs`。仅测试工具引用本机路径，运行时源码无硬编码路径。探针临时关闭后台节流并在 finally 恢复。
+
+早期失败既包含真实的视口聚焦与辅助标签遍历缺口，也包含探针在关闭最后标签后误以为窗口仍在、以及读取异步弹窗过早；分别修复实现与探针。CLI 本身可能激活主窗口，故在导航完成当时记录目标 leaf，避免后续探针抢焦影响判定。最终使用有独立锚定标签的真实 popout 验证。
+
+dev:errors 里的 text / has 异常分别涉及 Quiet Outline / Iconic；Hot Reload 和 Git 的临时文件日志另保留。未见本轮 ARC / Life Series 错误栈，不清空日志掩盖失败。没有开启移动仿真；移动端待作者验收。
