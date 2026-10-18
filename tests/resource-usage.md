@@ -673,3 +673,17 @@ ARC 构建产物已部署到 `life-panel` 插件目录，`main.js`、`manifest.j
 短 CLI 的 0 B / 0 s 可能漏采。dev:errors 无 ARC 栈帧；现有 ResizeObserver / Quiet Outline 及宿主错误保留。未清日志来掩盖失败。
 
 用户随后明确实测确认节点双击和缩放正常，并授权发布正式 fix。人验范围限于这两项；其它设备手势不据此扩大为已验收。源构建与 Life Panel 已部署的三个文件 SHA-256 一致。
+
+### 0.6.3 正式发行核验
+
+- 用户再次确认“这次是人工验收成功”，发布说明按已通过人类实测记录。
+- 代码提交 / 标签目标：`3436f38a9e21031619e019ab6cf1286ed40262e0`；主线 CI `39081129841` 成功后创建 `v0.6.3`。
+- Release 工作流 `39081284743` 成功，重新测试和构建，四个资产上传完整。
+- `isPrerelease=false`，`releases/latest` 返回 `v0.6.3`。正式版地址：https://github.com/ARCJ137442/Obsidian-Canvas-Block-Reference/releases/tag/v0.6.3
+- 已下载并检查 zip，根目录为 `obsidian-whiteboard-deduction-arc/`。内部三文件 SHA-256 与本地构建、Life Panel 已部署文件及 GitHub 单文件资产 digest 一致。
+- main.js：`C5D7A48090933F41887AB8DF184EC0A680F7ADD255AB7965F0A2900450FE82C0`
+- manifest.json：`FEA4EBDED7BCEB446A1BA644C31129D1782E772772433792977C4789DD7C3213`
+- styles.css：`36F4D47F2087145540298CD4557D405D6BF279BABEA9E44B7857D744ABC6FBEB`
+- zip：`A7BE6AEE5A668850A0B754555D3EB5A07009092ADAAF0EB9271D6392857299E0`
+
+此文档补记不移动标签、不修改发行资产。
