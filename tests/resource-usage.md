@@ -632,3 +632,44 @@ ARC 构建产物已部署到 `life-panel` 插件目录，`main.js`、`manifest.j
 | `meta062-release-runtime-verification-v2` | 运行 0.6.2、启用、三命令正常；已加载视图 27 卡与 swipe 标记正确；另有一个宿主延迟加载标签；探针已清除 | 337.35 | 0 MiB | 0 s | 1 |
 
 两个短 CLI 进程资源可能漏采。此发布核验补记不移动标签、不改变发布资产；人类验收状态仍为待验证。
+
+## 2026-10-18 v0.6.3 双击回退与真实输入回归
+
+用户确认 0.6.2 滚轮正常，但节点双击未打开白板。先用 CLI / CDP 的真实鼠标按下 / 弹起复现，`isTrusted=true`：pointerdown 在卡片，gotpointercapture、pointerup、click、dblclick 全落到 viewport，实际打开次数 0。此前直接 dispatch dblclick 的合成探针绕过浏览器捕获重定向，因此不能证明真实双击可用。
+
+修复仅改变节点手势的捕获表面及对应释放：鼠标 / 触笔节点由卡片捕获，触摸 / 画布平移继续由 viewport 捕获；按实际 Element 记录并清理。正常 pointerup 后的 lostpointercapture 不再清空已完成的首次触摸记录。缩放算法和配色布局没有改变。
+
+| Label | 结果 | ms | 峰值工作集 | CPU | Samples |
+|---|---|---:|---:|---:|---:|
+| `dblclick-cli-help` | 读取当前 CLI 的 CDP 入口 | 353.01 | 0 MiB | 0 s | 1 |
+| `dblclick-cdp-baseline` | 当前 Chromium / Obsidian 运行时可用 | 691.57 | 0 MiB | 0 s | 1 |
+| `dblclick-trace-setup` | 0.6.2 主窗口临时页，记录 trusted 原生鼠标事件 | 813.72 | 0 MiB | 0 s | 1 |
+| `dblclick-native-before-mousePressed-1` | 真实鼠标按下 / 弹起，浏览器自动生成点击 | 695.08 | 0 MiB | 0 s | 1 |
+| `dblclick-native-before-mouseReleased-1` | 真实鼠标按下 / 弹起，浏览器自动生成点击 | 329.40 | 0 MiB | 0 s | 1 |
+| `dblclick-native-before-mousePressed-2` | 真实鼠标按下 / 弹起，浏览器自动生成点击 | 304.97 | 0 MiB | 0 s | 1 |
+| `dblclick-native-before-mouseReleased-2` | 真实鼠标按下 / 弹起，浏览器自动生成点击 | 303.36 | 0 MiB | 0 s | 1 |
+| `dblclick-native-before-result` | 复现：原生 click / dblclick 被捕获重定向到 viewport，打开次数 0 | 305.59 | 0 MiB | 0 s | 1 |
+| `dblclick-baseline-cleanup` | 删除临时标签与事件探针，恢复活动页面 | 380.32 | 0 MiB | 0 s | 1 |
+| `dblclick-cdp-targets` | 读取主窗口与已有 popout 的 CDP target | 363.26 | 0 MiB | 0 s | 1 |
+| `dblclick-fix-tests` | 96/96 全量通过 | 1807.64 | 68.09 MiB | 0.328 s | 1 |
+| `dblclick-fix-build` | 0.6.3 TypeScript / 生产构建通过 | 1789.23 | 68.26 MiB | 0.25 s | 2 |
+| `dblclick-fix-reload` | Life Panel 部署重载成功 | 950.42 | 0 MiB | 0 s | 1 |
+| `dblclick-native-regression-main` | 桌面 CDP touch 命令超时，移除不适用的触摸注入；不能当真机证据 | 37605.88 | 58.67 MiB | 0.312 s | 36 |
+| `dblclick-post-probe-state` | 确认临时页已清理；运行 0.6.3，未切换移动仿真 | 488.27 | 0 MiB | 0 s | 1 |
+| `dblclick-native-regression-main-v2` | 真实鼠标单击 / 双击 / 拖动后双击及同 leaf 导航通过 | 9358.38 | 55.88 MiB | 0.25 s | 8 |
+| `dblclick-native-regression-popout` | 已有 popout 中真实鼠标各路径通过 | 5338.44 | 53.27 MiB | 0.328 s | 4 |
+| `dblclick-native-final-main` | 隐藏窗口 CDP wheel 等待合成帧超时，改为 DOM wheel 状态检查 | 24076.91 | 58.82 MiB | 0.359 s | 20 |
+| `dblclick-native-final-popout` | Target 消息异步完成，立即读取 wheel 状态的探针前提不成立，已改同步 DOM 检查 | 3885.65 | 53.16 MiB | 0.359 s | 3 |
+| `dblclick-final-state` | 临时探针清除，捕获数 0，移动仿真关闭 | 351.92 | 0 MiB | 0 s | 1 |
+| `dblclick-runtime-errors` | 无 ARC 栈帧；宿主 / Quiet Outline 既有错误保留 | 369.44 | 0 MiB | 0 s | 1 |
+| `dblclick-native-final-main-v2` | 主窗口真实鼠标双击导航、拖动后再双击通过；合成 wheel 和 touch 释放顺序通过 | 8549.30 | 58.3 MiB | 0.297 s | 8 |
+| `dblclick-native-final-popout-v2` | 独立窗口同上，实际在原 leaf 打开正确 Canvas | 4843.75 | 53.25 MiB | 0.531 s | 5 |
+| `dblclick-capture-clean-state` | 0.6.3 运行正常，临时页 / 探针已移除，指针与捕获均为 0 | 658.78 | 0 MiB | 0 s | 1 |
+
+自动化结论：96 项测试、生产构建和差异检查通过；真实浏览器鼠标主 / 副窗口均完成单击选中、双击只打开一次、拖动后再次双击、实际同标签页进入正确原生白板。触摸释放顺序和 Ctrl+wheel 的 DOM 状态检查单独标为合成证据，未声称真实移动 WebView 通过。完整脚本为 scripts/test-meta-canvas-native-pointer.mjs，可由资源采样器重跑；脚本的 CLI 子进程作为同一进程树采样。
+
+失败探针如实保留：Desktop CDP touch 命令及隐藏窗口 CDP wheel 的等待超时，不更改移动仿真来绕过；后者在 popout 的异步消息读取也未当作成功。最终脚本只用真实鼠标序列验证本次回退，触摸和滚轮用同步状态检查，均通过。脚本失败时仍清理自己的标签 / session，保留原始错误与清理错误。
+
+短 CLI 的 0 B / 0 s 可能漏采。dev:errors 无 ARC 栈帧；现有 ResizeObserver / Quiet Outline 及宿主错误保留。未清日志来掩盖失败。
+
+用户随后明确实测确认节点双击和缩放正常，并授权发布正式 fix。人验范围限于这两项；其它设备手势不据此扩大为已验收。源构建与 Life Panel 已部署的三个文件 SHA-256 一致。

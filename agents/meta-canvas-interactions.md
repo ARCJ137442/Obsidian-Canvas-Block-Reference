@@ -8,6 +8,8 @@
 
 0.6.1 的前进、回溯、最近成功跳转排序已由用户人工验证。0.6.2 的元白板键鼠与触摸修复须分别记录自动验证和真机人工验证，不能把前一版本的人验结论扩大到新交互。
 
+用户已在 0.6.3 部署后实测确认节点双击进入白板和缩放正常，并授权发布正式 fix。此确认限定于这两项功能，不扩展为全部移动设备手势均已验收。
+
 ## 已复现的原因
 
 - 主窗口与 popout 的 `performance.timeOrigin` 不同。旧代码用全局 `performance.now()` 开始动画，再接收目标窗口的 rAF 时间戳；实测两个时钟差约 2955ms，首帧把 1 倍放大请求错误地钳制成 0.28 倍。动画时间必须来自同一 Window，且进度限定在 0–1。
@@ -17,6 +19,24 @@
 这些结论来自当前安装的宿主代码和 CLI 运行时；它们是兼容边界，Obsidian 升级后需复核，不能当作永久公开 API 保证。
 
 ## 操作契约
+
+### 0.6.3：捕获表面必须保留点击目标
+
+用户已确认 0.6.2 滚轮正常，但真实鼠标双击失效。CLI / CDP 输入复现：卡片的 pointerdown 把指针捕获到 viewport，浏览器随后生成的 pointerup、click、dblclick 也落到 viewport，卡片没有收到双击。此前直接在卡片 dispatch dblclick 的探针绕过了这一步，不能作为真实双击通过的证据。
+
+- 鼠标 / 触笔节点手势由卡片本身捕获；触摸和画布平移仍由 viewport 捕获，状态机与输入范围不变。
+- 记录每个指针实际使用的捕获元素，在失焦 / 关闭时释放该元素；不能只尝试释放 viewport 的捕获。
+- 正常 pointerup 后浏览器会发出 lostpointercapture。只对仍在进行的手势执行取消，避免把已经完成的首次触摸记录清空，破坏双 tap。
+- `scripts/test-meta-canvas-native-pointer.mjs` 使用 CDP 的真实鼠标按下 / 弹起，由浏览器生成 click / dblclick；检查单击、双击、拖动后再双击，以及实际同标签页进入正确原生 Canvas。触摸释放顺序与滚轮为明确标注的合成事件检查，不宣称真机通过。
+
+通过资源采样器运行（不新建窗口，需要已有 popout）：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/measure-command.ps1 -Label native-pointer-main -Command "node scripts/test-meta-canvas-native-pointer.mjs --vault life-panel --window main"
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/measure-command.ps1 -Label native-pointer-popout -Command "node scripts/test-meta-canvas-native-pointer.mjs --vault life-panel --window popout"
+```
+
+整个脚本及其 CLI 子进程统一采样；脚本自动恢复活动页面、关闭临时标签并解绑自己创建的 CDP session。默认用 PATH 中的 Obsidian CLI，也可通过 `OBSIDIAN_CLI` 指定可执行文件。
 
 | 输入 | 预期 |
 |---|---|
@@ -55,7 +75,7 @@
 
 ## 人工验收顺序
 
-1. 确认插件实际加载 **0.6.2**。跨设备同步 `main.js`、`manifest.json`、`styles.css` 后重载；确认没有开启移动端仿真。
+1. 确认插件实际加载 **0.6.3**。跨设备同步 `main.js`、`manifest.json`、`styles.css` 后重载；确认没有开启移动端仿真。
 2. 先在同设备原生 Canvas 完成一次平移和双指缩放，再打开元白板比较。
 3. 桌面将鼠标放在一张容易识别的卡片上，连续 Ctrl + 滚轮放大、缩小和快速反向；卡片应留在鼠标附近，不回弹到固定比例。普通滚轮、Shift + 滚轮与中 / 右键拖动分别验证。
 4. 在主窗口、分栏及已有独立窗口重复关键操作；失焦后回来不应持续拖动或继续执行旧动画。

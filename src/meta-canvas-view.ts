@@ -54,6 +54,7 @@ export class MetaCanvasView extends ItemView {
 	private readonly edgeElements = new Map<string, SVGPathElement>();
 	private readonly edgeHitElements = new Map<string, SVGPathElement>();
 	private readonly pointerTargets = new Map<number, Exclude<PointerTarget, { kind: "excluded" }>>();
+	private readonly pointerCaptures = new Map<number, Element>();
 	private lastTouchTap?: { key: string; point: PointerPoint; at: number };
 
 	constructor(
@@ -590,7 +591,15 @@ export class MetaCanvasView extends ItemView {
 			this.pointerTargets.set(event.pointerId, target);
 			if (event.pointerType === "touch" && this.interaction?.activeGestureKind === "pinch") this.lastTouchTap = undefined;
 			event.preventDefault();
-			try { viewport.setPointerCapture(event.pointerId); } catch { /* Pointer capture is optional in embedded panes. */ }
+			// Browsers retarget click/dblclick to the pointer-capture element. Keep mouse/pen
+			// node gestures on the card; capturing the viewport here makes double-click miss it.
+			const captureElement = event.pointerType !== "touch" && target.kind === "board" && this.interaction?.activeGestureKind === "node"
+				? this.boardElements.get(target.path) ?? viewport
+				: viewport;
+			try {
+				captureElement.setPointerCapture(event.pointerId);
+				this.pointerCaptures.set(event.pointerId, captureElement);
+			} catch { /* Window listeners continue the gesture if capture is unavailable. */ }
 		};
 		const pointerMove = (event: PointerEvent): void => {
 			if (!this.interaction?.pointerMove(event.pointerId, this.localPoint(viewport, event))) return;
@@ -602,10 +611,15 @@ export class MetaCanvasView extends ItemView {
 			if (target && this.interaction?.shouldSuppressCompatibilityClick(event.pointerId)) this.suppressCompatibilityClickFor(target);
 			const consumed = this.interaction?.pointerUp(event.pointerId, this.localPoint(viewport, event)) ?? false;
 			this.pointerTargets.delete(event.pointerId);
+			this.pointerCaptures.delete(event.pointerId);
 			if (consumed && event.pointerType === "touch") event.preventDefault();
 		};
 		const pointerCancel = (event: PointerEvent): void => {
+			// Normal pointerup also releases capture. Only cancel a still-owned gesture;
+			// otherwise its lostpointercapture would erase the first tap of a double-tap.
+			if (!this.interaction?.hasPointer(event.pointerId)) return;
 			this.pointerTargets.delete(event.pointerId);
+			this.pointerCaptures.delete(event.pointerId);
 			this.lastTouchTap = undefined;
 			this.interaction?.pointerCancel(event.pointerId);
 		};
@@ -656,9 +670,7 @@ export class MetaCanvasView extends ItemView {
 			this.interaction?.cancel();
 			if (finishZoom) this.motion?.finishAnimation();
 			else this.motion?.cancel();
-			for (const id of this.pointerTargets.keys()) {
-				try { if (viewport.hasPointerCapture(id)) viewport.releasePointerCapture(id); } catch { /* Capture may already be lost. */ }
-			}
+			this.releasePointerCaptures();
 			this.pointerTargets.clear();
 			this.compatibilityClicks.clearAll();
 			this.lastTouchTap = undefined;
@@ -695,9 +707,7 @@ export class MetaCanvasView extends ItemView {
 
 	private cleanupViewportInteraction(): void {
 		this.cancelScheduledFit();
-		for (const id of this.pointerTargets.keys()) {
-			try { if (this.viewport?.hasPointerCapture(id)) this.viewport.releasePointerCapture(id); } catch { /* Capture may already be lost. */ }
-		}
+		this.releasePointerCaptures();
 		this.interaction?.destroy();
 		this.interaction = undefined;
 		this.motion?.cancel();
@@ -707,6 +717,14 @@ export class MetaCanvasView extends ItemView {
 		this.compatibilityClicks.clearAll();
 		this.pointerTargets.clear();
 		this.lastTouchTap = undefined;
+	}
+
+	private releasePointerCaptures(): void {
+		const captures = [...this.pointerCaptures];
+		this.pointerCaptures.clear();
+		for (const [id, element] of captures) {
+			try { if (element.hasPointerCapture(id)) element.releasePointerCapture(id); } catch { /* Capture may already be lost. */ }
+		}
 	}
 
 	private scheduleInitialFit(viewport: HTMLElement): void {
